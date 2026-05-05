@@ -91,6 +91,8 @@ end
 
 local activeTimer = nil
 local timerOverlays = {}
+local runFinalized = false
+local showCompletedRun = false
 local displaySettings = {
     initialized = false,
 }
@@ -168,12 +170,15 @@ local function IsMultiRunMode()
 end
 
 local function IsCurrentRunOverlayVisible()
-    return activeTimer and activeTimer.Running and IsModuleEnabled()
+    return activeTimer
+        and (activeTimer.Running or showCompletedRun)
+        and IsModuleEnabled()
 end
 
 local function IsTimerOverlayVisible()
-    return IsModuleEnabled() and IsLiveTimerRowsEnabled() and (activeTimer and activeTimer.Running
-        or (internal.IsBatchVisible and internal.IsBatchVisible()))
+    local hasCurrentRunDisplay = activeTimer and (activeTimer.Running or showCompletedRun)
+    local hasBatchDisplay = internal.IsBatchVisible and internal.IsBatchVisible()
+    return IsModuleEnabled() and IsLiveTimerRowsEnabled() and (hasCurrentRunDisplay or hasBatchDisplay)
 end
 
 local function ReadTimerMode(mode)
@@ -350,10 +355,11 @@ end
 
 local updateThreadActive = false
 local StopAndCleanup = nil
-local runFinalized = false
 
 local function HasActiveDisplayLoop()
-    return IsCurrentRunOverlayVisible() or (internal.IsBatchActive and internal.IsBatchActive())
+    local hasRunningTimer = activeTimer and activeTimer.Running
+    local hasActiveBatch = internal.IsBatchActive and internal.IsBatchActive()
+    return hasRunningTimer or hasActiveBatch
 end
 
 local function ClearActiveTimer()
@@ -361,12 +367,13 @@ local function ClearActiveTimer()
         activeTimer:stop()
     end
     activeTimer = nil
+    showCompletedRun = false
     UpdateTimerSnapshot()
 end
 
 local function StartTimerDisplayLoop()
     local startedTimer = false
-    if activeTimer and not activeTimer.Running then
+    if activeTimer and not activeTimer.Running and not runFinalized then
         activeTimer:start()
         startedTimer = true
     end
@@ -435,6 +442,7 @@ local function HandleRunFinalized()
         internal.FinalizeBatchRun(activeTimer, GetCurrentRun())
     end
     activeTimer:stop()
+    showCompletedRun = not IsMultiRunMode()
     UpdateTimerSnapshot()
     RefreshTimerStructure()
 end
@@ -447,6 +455,7 @@ function internal.RegisterHooks()
         end
         activeTimer = SpeedrunTimer:new()
         runFinalized = false
+        showCompletedRun = false
         UpdateTimerSnapshot()
         local run = baseFunc(prevRun, args)
         if internal.StartSplitRun then

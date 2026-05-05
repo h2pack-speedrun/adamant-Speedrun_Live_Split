@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Quick tab minor bug fix
+- Single run timer now persists after victory screen
 ## [1.1.0] - 2026-05-05
 
 ### Changed

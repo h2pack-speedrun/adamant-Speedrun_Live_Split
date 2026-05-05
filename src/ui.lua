@@ -165,13 +165,15 @@ function internal.DrawTab(ui, session)
 end
 
 function internal.DrawQuickContent(ui, session)
-    lib.widgets.checkbox(ui, session, "Enabled", {
-        label = "Enable Speedrun Timer",
-        tooltip = "Show Speedrun Timer overlays during runs.",
+    lib.widgets.checkbox(ui, session, "ShowLiveTimers", {
+        label = "Show live timer rows",
+        tooltip = "Show the compact IGT/RTA/LrT rows above the split table.",
     })
-    lib.widgets.text(ui, "Open the module tab to choose timer columns, split display, and batch recording.", {
-        color = MUTED_TEXT_COLOR,
+    lib.widgets.checkbox(ui, session, "ShowSplitTable", {
+        label = "Show split table",
+        tooltip = "Show biome split rows for single-run or multi-run tracking.",
     })
+
 end
 
 return internal
