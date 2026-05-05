@@ -9,5 +9,4 @@ return {
     SplitMode = "single",
     BatchTargetRuns = 3,
     BatchRecordingArmed = false,
-    BatchRunInProgress = false,
 }

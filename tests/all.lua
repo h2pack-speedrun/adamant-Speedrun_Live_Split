@@ -1,7 +1,6 @@
 SpeedrunTimerInternal = {}
 local runtimeValues = {
     BatchRecordingArmed = false,
-    BatchRunInProgress = false,
 }
 local fakeTime = 0
 _worldTime = 0
@@ -144,6 +143,10 @@ local function assertEqual(actual, expected)
     end
 end
 
+local function assertBatchStatusText(expected)
+    assertEqual(SpeedrunTimerInternal.GetBatchStatus().text, expected)
+end
+
 local format = SpeedrunTimerInternal.FormatTimestamp
 
 assertEqual(format(nil), "00:00.00")
@@ -245,14 +248,12 @@ assertEqual(row.igt, "01:05.43")
 assertEqual(row.rta, "00:13.45")
 
 SpeedrunTimerInternal.StartBatch(2)
-assertEqual(SpeedrunTimerInternal.GetBatchStatusText(), "Armed for 2 runs")
+assertBatchStatusText("Armed for 2 runs")
 assertEqual(SpeedrunTimerInternal.GetBatchStatus().kind, "armed")
 assertEqual(runtimeValues.BatchRecordingArmed, true)
-assertEqual(runtimeValues.BatchRunInProgress, false)
 assertEqual(SpeedrunTimerInternal.GetBatchDisplayTime("rta"), nil)
 SpeedrunTimerInternal.StartBatchRun()
 assertEqual(SpeedrunTimerInternal.GetBatchStatus().kind, "active")
-assertEqual(runtimeValues.BatchRunInProgress, true)
 SpeedrunTimerInternal.UpdateBatchDisplayRows()
 assertEqual(SpeedrunTimerInternal.GetBatchCurrentDisplayRow().label, "Current 1/2")
 fakeTime = 100
@@ -264,8 +265,7 @@ SpeedrunTimerInternal.FinalizeBatchRun({
 }, {
     Cleared = true,
 })
-assertEqual(SpeedrunTimerInternal.GetBatchStatusText(), "Recording 1 / 2")
-assertEqual(runtimeValues.BatchRunInProgress, false)
+assertBatchStatusText("Recording 1 / 2")
 assertEqual(SpeedrunTimerInternal.GetBatchDisplayTime("igt"), "01:20.00")
 assertEqual(SpeedrunTimerInternal.GetBatchDisplayTime("igt", {
     getInGameTime = function()
@@ -286,7 +286,7 @@ SpeedrunTimerInternal.FinalizeBatchRun({
 }, {
     Cleared = true,
 })
-assertEqual(SpeedrunTimerInternal.GetBatchStatusText(), "Recorded 2 / 2")
+assertBatchStatusText("Recorded 2 / 2")
 assertEqual(SpeedrunTimerInternal.GetBatchStatus().kind, "recorded")
 assertEqual(SpeedrunTimerInternal.GetBatchDisplayTime("igt"), "02:30.00")
 SpeedrunTimerInternal.UpdateBatchDisplayRows()
@@ -307,17 +307,15 @@ SpeedrunTimerInternal.FinalizeBatchRun({
 }, {
     Cleared = false,
 })
-assertEqual(SpeedrunTimerInternal.GetBatchStatusText(), "Failed (0 / 3 complete)")
+assertBatchStatusText("Failed (0 / 3 complete)")
 assertEqual(SpeedrunTimerInternal.GetBatchStatus().kind, "failed")
 assertEqual(runtimeValues.BatchRecordingArmed, true)
-assertEqual(runtimeValues.BatchRunInProgress, false)
 SpeedrunTimerInternal.StartBatchRun()
 SpeedrunTimerInternal.UpdateBatchDisplayRows()
 assertEqual(SpeedrunTimerInternal.GetBatchDisplayRow(1).label, "")
 assertEqual(SpeedrunTimerInternal.GetBatchCurrentDisplayRow().label, "Current 1/3")
 
 runtimeValues.BatchRecordingArmed = true
-runtimeValues.BatchRunInProgress = true
 SpeedrunTimerInternal.store.read = function(alias)
     if alias == "BatchTargetRuns" then
         return 4
@@ -331,9 +329,8 @@ SpeedrunTimerInternal.store.read = function(alias)
     return nil
 end
 SpeedrunTimerInternal.InitializeBatchState()
-assertEqual(SpeedrunTimerInternal.GetBatchStatusText(), "Armed for 4 runs")
+assertBatchStatusText("Armed for 4 runs")
 assertEqual(runtimeValues.BatchRecordingArmed, true)
-assertEqual(runtimeValues.BatchRunInProgress, false)
 
 lib.widgets = {
     text = function() end,

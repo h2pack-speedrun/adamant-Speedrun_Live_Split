@@ -51,13 +51,6 @@ function internal.BuildStorage()
             default = false,
             runtime = true,
         },
-        {
-            type = "bool",
-            alias = "BatchRunInProgress",
-            configKey = "BatchRunInProgress",
-            default = false,
-            runtime = true,
-        },
     }
 end
 

@@ -188,7 +188,6 @@ end
 
 local function persistRecordingState()
     writeRuntime("BatchRecordingArmed", batchState.armed == true)
-    writeRuntime("BatchRunInProgress", batchState.active == true and batchState.currentRunActive == true)
 end
 
 function internal.IsBatchActive()
@@ -198,10 +197,6 @@ end
 function internal.IsBatchVisible()
     local modeVisible = not (modeConfig and modeConfig.isVisible) or modeConfig.isVisible() == true
     return modeVisible and (batchState.timer ~= nil or batchState.failed == true or batchState.completedRuns > 0)
-end
-
-function internal.IsBatchForcingTimerModes()
-    return false
 end
 
 function internal.GetBatchStatus()
@@ -233,10 +228,6 @@ function internal.GetBatchStatus()
         kind = "idle",
         text = "Not recording",
     }
-end
-
-function internal.GetBatchStatusText()
-    return internal.GetBatchStatus().text
 end
 
 local function refreshDisplay()

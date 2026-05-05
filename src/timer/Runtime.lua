@@ -26,12 +26,6 @@ function SpeedrunTimer:stop()
     self.LrtTimer:stop()
 end
 
-function SpeedrunTimer:reset()
-    self.Running = false
-    self.RtaTimer:reset()
-    self.LrtTimer:reset()
-end
-
 function SpeedrunTimer:update()
     self.RtaTimer:update()
     self.LrtTimer:update()
@@ -192,10 +186,6 @@ local function ReadTimerMode(mode)
 end
 
 local function ReadTimerModeVisibility(mode)
-    if internal.IsBatchForcingTimerModes and internal.IsBatchForcingTimerModes() then
-        return true
-    end
-
     local value = ReadTimerMode(mode)
     if value ~= nil then
         return value == true
@@ -251,7 +241,6 @@ local function EnsureTimerOverlay(timerName, mode, orderOffset, getTime)
     local handle = lib.overlays.registerStackedRow({
         id = "speedrun.timer." .. timerName,
         componentName = "SpeedrunTimer_" .. timerName,
-        owner = internal.PLUGIN_GUID,
         region = OVERLAY_REGION,
         order = TIMER_OVERLAY_ORDER + orderOffset,
         columnGap = 20,
@@ -328,7 +317,7 @@ local function RefreshTimerStructure()
     SyncDisplaySettings()
     EnsureTimerOverlays()
     if internal.UpdateBatchDisplayRows then
-        internal.UpdateBatchDisplayRows(activeTimer)
+        internal.UpdateBatchDisplayRows()
     end
     if internal.UpdateSplitDisplayRows then
         internal.UpdateSplitDisplayRows(activeTimer)
@@ -464,7 +453,7 @@ function internal.RegisterHooks()
             internal.StartSplitRun(run)
         end
         if internal.StartBatchRun then
-            internal.StartBatchRun(run)
+            internal.StartBatchRun()
         end
         RefreshTimerStructure()
         return run
@@ -495,11 +484,9 @@ function internal.RegisterHooks()
         local val = baseFunc(currRun, timerBlockName)
         local shouldRecordLoad = IsModuleEnabled() and timerBlockName == "MapLoad"
         if shouldRecordLoad and activeTimer and activeTimer.Running then
-
             activeTimer.LrtTimer:processLoadEvent(true)
         end
         if shouldRecordLoad and internal.ProcessBatchLoadEvent then
-
             internal.ProcessBatchLoadEvent(true)
         end
         return val
@@ -509,11 +496,9 @@ function internal.RegisterHooks()
         local val = baseFunc(currRun, timerBlockName)
         local shouldRecordLoad = IsModuleEnabled() and timerBlockName == "MapLoad"
         if shouldRecordLoad and activeTimer and activeTimer.Running then
-
             activeTimer.LrtTimer:processLoadEvent(false)
         end
         if shouldRecordLoad and internal.ProcessBatchLoadEvent then
-
             internal.ProcessBatchLoadEvent(false)
         end
         return val

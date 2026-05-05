@@ -61,7 +61,6 @@ function timerOverlay.registerTableRow(cache, key, opts)
     local handle = lib.overlays.registerStackedRow({
         id = opts.idPrefix .. key,
         componentName = opts.componentPrefix .. key,
-        owner = internal.PLUGIN_GUID,
         region = opts.region or OVERLAY_REGION,
         order = opts.order,
         columnGap = opts.columnGap or 10,

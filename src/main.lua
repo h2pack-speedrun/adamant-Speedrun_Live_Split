@@ -23,7 +23,7 @@ local PLUGIN_GUID = _PLUGIN.guid
 ---@field standaloneUi StandaloneRuntime|nil
 ---@field PACK_ID string|nil
 ---@field MODULE_ID string|nil
----@field BuildStorage fun(): StorageSchema|nil
+---@field BuildStorage fun(): StorageSchema[]|nil
 ---@field RegisterHooks fun()|nil
 ---@field DrawTab fun(imgui: table, session: AuthorSession)|nil
 ---@field DrawQuickContent fun(imgui: table, session: AuthorSession)|nil
@@ -34,7 +34,6 @@ local internal = SpeedrunTimerInternal
 
 internal.PACK_ID = PACK_ID
 internal.MODULE_ID = MODULE_ID
-internal.PLUGIN_GUID = PLUGIN_GUID
 
 internal.standaloneUi = nil
 
