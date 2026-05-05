@@ -2,10 +2,13 @@
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-05-05
+
 ### Changed
 
 - Quick tab minor bug fix
 - Single run timer now persists after victory screen
+
 ## [1.1.0] - 2026-05-05
 
 ### Changed
@@ -29,6 +32,7 @@
 
 Initial release
 
-[unreleased]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.0...HEAD
+[unreleased]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.1...HEAD
+[1.1.1]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/634e4468165e8839e160039a7a5d3e751344e5dd...1.0.0
