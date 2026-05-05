@@ -49,21 +49,41 @@ function SpeedrunTimer:getInGameTime()
     return self.IgtTimer:getTime()
 end
 
-local ANCHOR_PREFIX = "adamant_SpeedrunTimer:"
+local TIMER_OVERLAY_ORDER = lib.overlays.order.module + 10
+local BATCH_OVERLAY_ORDER = TIMER_OVERLAY_ORDER + 10
+local SPLIT_OVERLAY_ORDER = BATCH_OVERLAY_ORDER + 20
+local TIMER_REFRESH_INTERVAL = 0.05
+local OVERLAY_REGION = internal.TimerOverlay.region
+local MODE_ALIASES = {
+    igt = "ShowIGT",
+    rta = "ShowRTA",
+    lrt = "ShowLrT",
+}
+local DEFAULT_MODE_VISIBILITY = {
+    igt = true,
+    rta = false,
+    lrt = false,
+}
+local DEFAULT_SETTING_VALUES = {
+    ShowLiveTimers = true,
+    ShowSplitTable = true,
+    SplitMode = "single",
+}
 
-local function FormatTimestamp(timestamp)
-    if not timestamp then return "00:00.00" end
-    local centiseconds = (timestamp % 1) * 100
-    local seconds = timestamp % 60
-    local minutes = 0
-    local hours = 0
+local function ToCentiseconds(timestamp)
+    if not timestamp then
+        return 0
+    end
+    return math.floor((timestamp * 100) + 0.0000001)
+end
 
-    if timestamp > 60 then
-        minutes = math.floor((timestamp % 3600) / 60)
-    end
-    if timestamp > 3600 then
-        hours = math.floor(timestamp / 3600)
-    end
+local function FormatCentiseconds(totalCentiseconds)
+    local centiseconds = totalCentiseconds % 100
+    local totalSeconds = math.floor(totalCentiseconds / 100)
+    local seconds = totalSeconds % 60
+    local totalMinutes = math.floor(totalSeconds / 60)
+    local minutes = totalMinutes % 60
+    local hours = math.floor(totalMinutes / 60)
 
     if hours == 0 then
         return string.format("%02d:%02d.%02d", minutes, seconds, centiseconds)
@@ -71,157 +91,443 @@ local function FormatTimestamp(timestamp)
     return string.format("%02d:%02d:%02d.%02d", hours, minutes, seconds, centiseconds)
 end
 
-local function CreateOverlayLine(anchorName, text, kwargs)
-    local textFormat = DeepCopyTable(UIData.CurrentRunDepth.TextFormat)
-    local x_pos = kwargs.x_pos or 500
-    local y_pos = kwargs.y_pos or 500
-
-    textFormat.Font = kwargs.font or textFormat.Font
-    textFormat.FontSize = kwargs.font_size or textFormat.FontSize
-    textFormat.Color = kwargs.color or textFormat.Color
-    textFormat.Justification = kwargs.justification or textFormat.Justification
-    textFormat.ShadowColor = kwargs.shadow_color or { 0, 0, 0, 0 }
-
-    if ScreenAnchors[anchorName] ~= nil then
-        ModifyTextBox({
-            Id = ScreenAnchors[anchorName],
-            Text = text,
-            Color = kwargs.color or textFormat.Color,
-        })
-    else
-        ScreenAnchors[anchorName] = CreateScreenObstacle({
-            Name = "BlankObstacle",
-            X = x_pos,
-            Y = y_pos,
-            Group = "Combat_Menu_TraitTray_Overlay",
-        })
-        CreateTextBox(MergeTables(textFormat, {
-            Id = ScreenAnchors[anchorName],
-            Text = text,
-        }))
-        ModifyTextBox({
-            Id = ScreenAnchors[anchorName],
-            FadeTarget = 1,
-            FadeDuration = 0.0,
-        })
-    end
-end
-
-local function DestroyAnchor(anchorName)
-    if ScreenAnchors[anchorName] ~= nil then
-        Destroy({ Id = ScreenAnchors[anchorName] })
-        ScreenAnchors[anchorName] = nil --luacheck: ignore 443
-    end
-end
-
-local function DrawTimer(timerName, timer, yOffset)
-    CreateOverlayLine(
-        ANCHOR_PREFIX .. timerName,
-        FormatTimestamp(timer:getTime()),
-        {
-            justification = "left",
-            x_pos = 1820,
-            y_pos = 180 + yOffset,
-            font_size = 20,
-        }
-    )
-end
-
-local function CleanupDisplay()
-    DestroyAnchor(ANCHOR_PREFIX .. "LRT")
-    DestroyAnchor(ANCHOR_PREFIX .. "RTA")
+function internal.FormatTimestamp(timestamp)
+    return FormatCentiseconds(ToCentiseconds(timestamp))
 end
 
 local activeTimer = nil
-local updateThreadActive = false
+local timerOverlays = {}
+local displaySettings = {
+    initialized = false,
+}
+local timerSnapshot = {
+    igt = 0,
+    rta = 0,
+    lrt = 0,
+    centiseconds = {
+        igt = -1,
+        rta = -1,
+        lrt = -1,
+    },
+    formatted = {
+        igt = "00:00.00",
+        rta = "00:00.00",
+        lrt = "00:00.00",
+    },
+}
 
-local function StopAndCleanup()
+local function UpdateSnapshotValue(key, value)
+    value = value or 0
+    timerSnapshot[key] = value
+
+    local centiseconds = ToCentiseconds(value)
+    if timerSnapshot.centiseconds[key] ~= centiseconds then
+        timerSnapshot.centiseconds[key] = centiseconds
+        timerSnapshot.formatted[key] = FormatCentiseconds(centiseconds)
+    end
+end
+
+local function UpdateTimerSnapshot()
+    UpdateSnapshotValue("igt", activeTimer and activeTimer:getInGameTime() or 0)
+    UpdateSnapshotValue("rta", activeTimer and activeTimer:getRealTime() or 0)
+    UpdateSnapshotValue("lrt", activeTimer and activeTimer:getLoadRemovedTime() or 0)
+end
+
+local function GetTimerSnapshot()
+    return timerSnapshot
+end
+
+local function IsModuleEnabled()
+    return lib.isModuleEnabled(internal.store, internal.PACK_ID)
+end
+
+local function ReadSetting(alias)
+    local store = internal.store
+    if store and type(store.read) == "function" then
+        local value = store.read(alias)
+        if value ~= nil then
+            return value
+        end
+    end
+    return DEFAULT_SETTING_VALUES[alias]
+end
+
+local function IsLiveTimerRowsEnabled()
+    if displaySettings.initialized then
+        return displaySettings.showLiveTimers == true
+    end
+    return ReadSetting("ShowLiveTimers") == true
+end
+
+local function IsSplitTableEnabled()
+    if displaySettings.initialized then
+        return displaySettings.showSplitTable == true
+    end
+    return ReadSetting("ShowSplitTable") == true
+end
+
+local function IsMultiRunMode()
+    if displaySettings.initialized then
+        return displaySettings.splitMode == "multi"
+    end
+    return ReadSetting("SplitMode") == "multi"
+end
+
+local function IsCurrentRunOverlayVisible()
+    return activeTimer and activeTimer.Running and IsModuleEnabled()
+end
+
+local function IsTimerOverlayVisible()
+    return IsModuleEnabled() and IsLiveTimerRowsEnabled() and (activeTimer and activeTimer.Running
+        or (internal.IsBatchVisible and internal.IsBatchVisible()))
+end
+
+local function ReadTimerMode(mode)
+    local alias = MODE_ALIASES[mode]
+    local store = internal.store
+    if alias and store and type(store.read) == "function" then
+        return store.read(alias)
+    end
+    return nil
+end
+
+local function ReadTimerModeVisibility(mode)
+    if internal.IsBatchForcingTimerModes and internal.IsBatchForcingTimerModes() then
+        return true
+    end
+
+    local value = ReadTimerMode(mode)
+    if value ~= nil then
+        return value == true
+    end
+    return DEFAULT_MODE_VISIBILITY[mode] == true
+end
+
+local function IsTimerModeVisible(mode)
+    if displaySettings.initialized then
+        if mode == "igt" then
+            return displaySettings.showIgt == true
+        end
+        if mode == "rta" then
+            return displaySettings.showRta == true
+        end
+        if mode == "lrt" then
+            return displaySettings.showLrt == true
+        end
+    end
+
+    return ReadTimerModeVisibility(mode)
+end
+
+local function IsTimerModeOverlayVisible(mode)
+    return IsTimerOverlayVisible() and IsTimerModeVisible(mode)
+end
+
+local function SyncDisplaySettings()
+    displaySettings.initialized = true
+    displaySettings.showLiveTimers = ReadSetting("ShowLiveTimers")
+    displaySettings.showSplitTable = ReadSetting("ShowSplitTable")
+    displaySettings.splitMode = ReadSetting("SplitMode")
+    displaySettings.showIgt = ReadTimerModeVisibility("igt")
+    displaySettings.showRta = ReadTimerModeVisibility("rta")
+    displaySettings.showLrt = ReadTimerModeVisibility("lrt")
+end
+
+local function GetDisplayTime(mode)
+    if internal.GetBatchDisplayTime then
+        local batchTime = internal.GetBatchDisplayTime(mode, activeTimer)
+        if batchTime ~= nil then
+            return batchTime
+        end
+    end
+    return timerSnapshot.formatted[mode]
+end
+
+local function EnsureTimerOverlay(timerName, mode, orderOffset, getTime)
+    if timerOverlays[timerName] then
+        return timerOverlays[timerName]
+    end
+
+    local handle = lib.overlays.registerStackedRow({
+        id = "speedrun.timer." .. timerName,
+        componentName = "SpeedrunTimer_" .. timerName,
+        owner = internal.PLUGIN_GUID,
+        region = OVERLAY_REGION,
+        order = TIMER_OVERLAY_ORDER + orderOffset,
+        columnGap = 20,
+        columns = {
+            {
+                key = "label",
+                minWidth = 40,
+                justify = "Left",
+                text = timerName .. ":",
+                textArgs = {
+                    Font = "P22UndergroundSCMedium",
+                },
+            },
+            {
+                key = "time",
+                minWidth = 80,
+                justify = "Left",
+                text = getTime,
+                textArgs = {
+                    Font = "NumericP22UndergroundSCMedium",
+                },
+            },
+        },
+        visible = function()
+            return IsTimerModeOverlayVisible(mode)
+        end,
+    })
+    timerOverlays[timerName] = handle
+    return handle
+end
+
+local function EnsureTimerOverlays()
+    EnsureTimerOverlay("IGT", "igt", 0, function()
+        return GetDisplayTime("igt")
+    end)
+    EnsureTimerOverlay("RTA", "rta", 1, function()
+        return GetDisplayTime("rta")
+    end)
+    EnsureTimerOverlay("LrT", "lrt", 2, function()
+        return GetDisplayTime("lrt")
+    end)
+end
+
+if internal.ConfigureBatchOverlays then
+    internal.ConfigureBatchOverlays({
+        order = BATCH_OVERLAY_ORDER,
+    })
+end
+
+if internal.ConfigureSplitOverlays then
+    internal.ConfigureSplitOverlays({
+        order = SPLIT_OVERLAY_ORDER,
+        getTimer = function()
+            return activeTimer
+        end,
+        getSnapshot = GetTimerSnapshot,
+        isVisible = function()
+            return IsSplitTableEnabled() and IsCurrentRunOverlayVisible()
+        end,
+        isModeVisible = IsTimerModeVisible,
+    })
+end
+
+if internal.ConfigureBatchMode then
+    internal.ConfigureBatchMode({
+        isVisible = function()
+            return IsSplitTableEnabled() and IsMultiRunMode()
+        end,
+        isModeVisible = IsTimerModeVisible,
+    })
+end
+
+local function RefreshTimerStructure()
+    SyncDisplaySettings()
+    EnsureTimerOverlays()
+    if internal.UpdateBatchDisplayRows then
+        internal.UpdateBatchDisplayRows(activeTimer)
+    end
+    if internal.UpdateSplitDisplayRows then
+        internal.UpdateSplitDisplayRows(activeTimer)
+    end
+    if internal.EnsureBatchOverlays then
+        internal.EnsureBatchOverlays()
+    end
+    if internal.EnsureSplitOverlays then
+        internal.EnsureSplitOverlays()
+    end
+    lib.overlays.refreshStackedText(OVERLAY_REGION)
+end
+
+local function RefreshTimerText()
+    for _, handle in pairs(timerOverlays) do
+        if handle.refreshText then
+            handle.refreshText()
+        else
+            handle.refresh()
+        end
+    end
+    if internal.RefreshSplitText then
+        internal.RefreshSplitText(activeTimer)
+    end
+end
+
+local function CleanupDisplay()
+    RefreshTimerStructure()
+end
+
+local updateThreadActive = false
+local StopAndCleanup = nil
+local runFinalized = false
+
+local function HasActiveDisplayLoop()
+    return IsCurrentRunOverlayVisible() or (internal.IsBatchActive and internal.IsBatchActive())
+end
+
+local function ClearActiveTimer()
     if activeTimer then
         activeTimer:stop()
     end
     activeTimer = nil
+    UpdateTimerSnapshot()
+end
+
+local function StartTimerDisplayLoop()
+    local startedTimer = false
+    if activeTimer and not activeTimer.Running then
+        activeTimer:start()
+        startedTimer = true
+    end
+
+    if startedTimer then
+        UpdateTimerSnapshot()
+        RefreshTimerStructure()
+    end
+
+    if HasActiveDisplayLoop() and not updateThreadActive then
+        updateThreadActive = true
+        thread(function()
+            while HasActiveDisplayLoop() do
+                if not IsModuleEnabled() then
+                    StopAndCleanup()
+                    return
+                end
+
+                if activeTimer and activeTimer.Running then
+                    activeTimer:update()
+                    if internal.RecordCompletedBiomeSplits then
+                        internal.RecordCompletedBiomeSplits(activeTimer)
+                    end
+                end
+                if internal.UpdateBatchTimer then
+                    internal.UpdateBatchTimer()
+                end
+                UpdateTimerSnapshot()
+
+                RefreshTimerText()
+
+                wait(TIMER_REFRESH_INTERVAL, "adamant_SpeedrunTimer", true)
+            end
+            updateThreadActive = false
+        end)
+    end
+end
+
+StopAndCleanup = function()
+    ClearActiveTimer()
+    if internal.StopBatch then
+        internal.StopBatch()
+    end
     updateThreadActive = false
     CleanupDisplay()
 end
 
+internal.RefreshTimerDisplay = RefreshTimerStructure
+internal.EnsureTimerDisplayLoop = StartTimerDisplayLoop
+
+function internal.OnSettingsCommitted()
+    RefreshTimerStructure()
+    StartTimerDisplayLoop()
+end
+
+local function GetCurrentRun()
+    return rom and rom.game and rom.game.CurrentRun or CurrentRun
+end
+
+local function HandleRunFinalized()
+    if runFinalized or not activeTimer then
+        return
+    end
+    runFinalized = true
+    if internal.FinalizeBatchRun then
+        internal.FinalizeBatchRun(activeTimer, GetCurrentRun())
+    end
+    activeTimer:stop()
+    UpdateTimerSnapshot()
+    RefreshTimerStructure()
+end
+
 function internal.RegisterHooks()
     lib.hooks.Wrap(internal, "StartNewRun", function(baseFunc, prevRun, args)
-        if not lib.isModuleEnabled(internal.store, internal.PACK_ID) then return baseFunc(prevRun, args) end
+        if not IsModuleEnabled() then return baseFunc(prevRun, args) end
         if activeTimer then
-            StopAndCleanup()
+            ClearActiveTimer()
         end
         activeTimer = SpeedrunTimer:new()
-        return baseFunc(prevRun, args)
+        runFinalized = false
+        UpdateTimerSnapshot()
+        local run = baseFunc(prevRun, args)
+        if internal.StartSplitRun then
+            internal.StartSplitRun(run)
+        end
+        if internal.StartBatchRun then
+            internal.StartBatchRun(run)
+        end
+        RefreshTimerStructure()
+        return run
     end)
 
     lib.hooks.Wrap(internal, "RoomEntranceMaterialize", function(baseFunc, ...)
-        if not lib.isModuleEnabled(internal.store, internal.PACK_ID) then return baseFunc(...) end
+        if not IsModuleEnabled() then return baseFunc(...) end
         local val = baseFunc(...)
-
-        if activeTimer and not activeTimer.Running then
-            activeTimer:start()
-        end
-
-        if activeTimer and activeTimer.Running and not updateThreadActive then
-            updateThreadActive = true
-            thread(function()
-                while activeTimer and activeTimer.Running do
-                    if not lib.isModuleEnabled(internal.store, internal.PACK_ID) then
-                        StopAndCleanup()
-                        return
-                    end
-                    activeTimer:update()
-                    DrawTimer("LRT", activeTimer.LrtTimer, 30)
-                    DrawTimer("RTA", activeTimer.RtaTimer, 50)
-                    wait(0.016, "adamant_SpeedrunTimer", true)
-                end
-                updateThreadActive = false
-            end)
-        end
-
+        StartTimerDisplayLoop()
         return val
     end)
 
-    lib.hooks.Wrap(internal, "ChronosKillPresentation", function(baseFunc, ...)
-        if not lib.isModuleEnabled(internal.store, internal.PACK_ID) then return baseFunc(...) end
-        if activeTimer then
-            activeTimer:stop()
-        end
-        return baseFunc(...)
+    lib.hooks.Wrap(internal, "RoomEntranceDreamBiomeStart", function(baseFunc, ...)
+        if not IsModuleEnabled() then return baseFunc(...) end
+        local val = baseFunc(...)
+        StartTimerDisplayLoop()
+        return val
+    end)
+
+    lib.hooks.Wrap(internal, "RecordRunStats", function(baseFunc, ...)
+        if not IsModuleEnabled() then return baseFunc(...) end
+        local val = baseFunc(...)
+        HandleRunFinalized()
+        return val
     end)
 
     lib.hooks.Wrap(internal, "AddTimerBlock", function(baseFunc, currRun, timerBlockName)
         local val = baseFunc(currRun, timerBlockName)
-        if lib.isModuleEnabled(internal.store, internal.PACK_ID) and timerBlockName == "MapLoad"
-                and activeTimer and activeTimer.Running then
+        local shouldRecordLoad = IsModuleEnabled() and timerBlockName == "MapLoad"
+        if shouldRecordLoad and activeTimer and activeTimer.Running then
 
             activeTimer.LrtTimer:processLoadEvent(true)
+        end
+        if shouldRecordLoad and internal.ProcessBatchLoadEvent then
+
+            internal.ProcessBatchLoadEvent(true)
         end
         return val
     end)
 
     lib.hooks.Wrap(internal, "RemoveTimerBlock", function(baseFunc, currRun, timerBlockName)
         local val = baseFunc(currRun, timerBlockName)
-        if lib.isModuleEnabled(internal.store, internal.PACK_ID) and timerBlockName == "MapLoad"
-                and activeTimer and activeTimer.Running then
+        local shouldRecordLoad = IsModuleEnabled() and timerBlockName == "MapLoad"
+        if shouldRecordLoad and activeTimer and activeTimer.Running then
 
             activeTimer.LrtTimer:processLoadEvent(false)
+        end
+        if shouldRecordLoad and internal.ProcessBatchLoadEvent then
+
+            internal.ProcessBatchLoadEvent(false)
         end
         return val
     end)
 end
 
 function internal.GetRealTime()
-    if activeTimer then return FormatTimestamp(activeTimer:getRealTime()) end
-    return "00:00.00"
+    return timerSnapshot.formatted.rta
 end
 
 function internal.GetLoadRemovedTime()
-    if activeTimer then return FormatTimestamp(activeTimer:getLoadRemovedTime()) end
-    return "00:00.00"
+    return timerSnapshot.formatted.lrt
 end
 
 function internal.GetInGameTime()
-    if activeTimer then return FormatTimestamp(activeTimer:getInGameTime()) end
-    return "00:00.00"
+    return timerSnapshot.formatted.igt
 end

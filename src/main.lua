@@ -34,6 +34,7 @@ local internal = SpeedrunTimerInternal
 
 internal.PACK_ID = PACK_ID
 internal.MODULE_ID = MODULE_ID
+internal.PLUGIN_GUID = PLUGIN_GUID
 
 internal.standaloneUi = nil
 
@@ -62,15 +63,19 @@ local function init()
     local definition = lib.prepareDefinition(internal, dataDefaults, {
         id = MODULE_ID,
         name = "Speedrun Timer",
-        tooltip = "Displays RTA and load-removed timers on screen during runs.",
+        tooltip = "Displays selected timer modes on screen during runs.",
         default = dataDefaults.Enabled,
         affectsRunData = false,
         modpack = PACK_ID,
         storage = internal.BuildStorage(),
+        onSettingsCommitted = internal.OnSettingsCommitted,
     })
 
     local store, session = lib.createStore(config, definition)
     internal.store = store
+    if internal.InitializeBatchState then
+        internal.InitializeBatchState()
+    end
 
     if internal.RegisterPublicApi then
         internal.RegisterPublicApi()

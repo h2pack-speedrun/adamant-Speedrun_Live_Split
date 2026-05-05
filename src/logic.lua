@@ -1,5 +1,8 @@
 local internal = SpeedrunTimerInternal
 
+import("timer/OverlayRows.lua")
+import("timer/Splits.lua")
+import("timer/Batch.lua")
 import("timer/Runtime.lua")
 
 function internal.RegisterPublicApi()

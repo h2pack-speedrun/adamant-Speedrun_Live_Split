@@ -32,4 +32,6 @@ read_globals = {
     "Destroy",
     "thread",
     "wait",
+    "CurrentRun",
+    "WasRunSuccess",
     }

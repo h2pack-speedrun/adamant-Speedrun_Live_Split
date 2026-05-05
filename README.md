@@ -1,28 +1,33 @@
 # Speedrun Timer
 
-Display on-screen timers for live run timing.
+Speedrun Timer adds in-game timing overlays for Hades II runs.
 
 Part of the [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Speedrun_Core/).
 
 ## What It Does
 
-Speedrun Timer displays timing overlays during runs so you can track attempt pace without leaving the game.
+Speedrun Timer shows selected timing information on screen while you play. It can show:
 
-The live timer stack includes:
+- IGT: in-game run time from the game's run timer.
+- RTA: real elapsed time.
+- LrT: load-removed time, with map-load time subtracted.
 
-- RTA
-  Real-Time Attack, based on wall-clock time.
-- LRT
-  Load-Removed Time, which subtracts load time from the run timer.
-- IGT
-  In-Game Time support through the engine timer layer.
+It can also show a biome split table for Underworld, Surface, and Dream Dive routes.
 
-In normal use, the module draws the active run timers on screen and keeps the load-removed timer in sync with map-load timer blocks.
+## Current Options
 
-Use it when you want a built-in speedrun timing overlay instead of relying on external timing alone.
+- Choose which timer columns are visible.
+- Show or hide the compact live timer rows.
+- Show or hide the split table.
+- Use single-run split mode or multi-run batch recording.
+- Record a batch of 1 to 10 runs and keep cumulative batch totals.
+
+## Gameplay Impact
+
+This module only displays timing information. It does not change rooms, rewards, enemies, boons, or run generation.
 
 ## Installation
 
 Install via r2modman.
 
-This module is usually installed as part of the full [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Speedrun_Core/), where it appears in the shared Speedrun UI with the other speedrun-focused modules.
+This module is usually installed as part of the full [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Speedrun_Core/), where it appears in the shared Speedrun UI.

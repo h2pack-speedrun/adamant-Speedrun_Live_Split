@@ -10,5 +10,9 @@ function IgtTimer:new()
 end
 
 function IgtTimer:getTime()  --luacheck: ignore 212
-    return _worldTime
+    local currentRun = rom and rom.game and rom.game.CurrentRun or CurrentRun
+    if not currentRun or currentRun.GameplayTime == nil then
+        return 0
+    end
+    return currentRun.GameplayTime
 end
