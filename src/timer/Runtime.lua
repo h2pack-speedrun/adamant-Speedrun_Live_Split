@@ -61,7 +61,7 @@ local DEFAULT_MODE_VISIBILITY = {
 local DEFAULT_SETTING_VALUES = {
     ShowLiveTimers = true,
     ShowSplitTable = true,
-    SplitMode = "single",
+    RecordingMode = "single",
 }
 
 local function ToCentiseconds(timestamp)
@@ -162,19 +162,6 @@ local function IsSplitTableEnabled()
     return ReadSetting("ShowSplitTable") == true
 end
 
-local function IsMultiRunMode()
-    if displaySettings.initialized then
-        return displaySettings.splitMode == "multi"
-    end
-    return ReadSetting("SplitMode") == "multi"
-end
-
-local function IsCurrentRunOverlayVisible()
-    return activeTimer
-        and (activeTimer.Running or showCompletedRun)
-        and IsModuleEnabled()
-end
-
 local function IsTimerOverlayVisible()
     local hasCurrentRunDisplay = activeTimer and (activeTimer.Running or showCompletedRun)
     local hasBatchDisplay = internal.IsBatchVisible and internal.IsBatchVisible()
@@ -222,10 +209,12 @@ local function SyncDisplaySettings()
     displaySettings.initialized = true
     displaySettings.showLiveTimers = ReadSetting("ShowLiveTimers")
     displaySettings.showSplitTable = ReadSetting("ShowSplitTable")
-    displaySettings.splitMode = ReadSetting("SplitMode")
     displaySettings.showIgt = ReadTimerModeVisibility("igt")
     displaySettings.showRta = ReadTimerModeVisibility("rta")
     displaySettings.showLrt = ReadTimerModeVisibility("lrt")
+    if internal.SyncRecordingMode then
+        internal.SyncRecordingMode()
+    end
 end
 
 local function GetDisplayTime(mode)
@@ -289,35 +278,6 @@ local function EnsureTimerOverlays()
     end)
 end
 
-if internal.ConfigureBatchOverlays then
-    internal.ConfigureBatchOverlays({
-        order = BATCH_OVERLAY_ORDER,
-    })
-end
-
-if internal.ConfigureSplitOverlays then
-    internal.ConfigureSplitOverlays({
-        order = SPLIT_OVERLAY_ORDER,
-        getTimer = function()
-            return activeTimer
-        end,
-        getSnapshot = GetTimerSnapshot,
-        isVisible = function()
-            return IsSplitTableEnabled() and IsCurrentRunOverlayVisible()
-        end,
-        isModeVisible = IsTimerModeVisible,
-    })
-end
-
-if internal.ConfigureBatchMode then
-    internal.ConfigureBatchMode({
-        isVisible = function()
-            return IsSplitTableEnabled() and IsMultiRunMode()
-        end,
-        isModeVisible = IsTimerModeVisible,
-    })
-end
-
 local function RefreshTimerStructure()
     SyncDisplaySettings()
     EnsureTimerOverlays()
@@ -334,6 +294,46 @@ local function RefreshTimerStructure()
         internal.EnsureSplitOverlays()
     end
     lib.overlays.refreshStackedText(OVERLAY_REGION)
+end
+
+if internal.ConfigureBatchOverlays then
+    internal.ConfigureBatchOverlays({
+        order = BATCH_OVERLAY_ORDER,
+    })
+end
+
+if internal.ConfigureSplitOverlays then
+    internal.ConfigureSplitOverlays({
+        order = SPLIT_OVERLAY_ORDER,
+        getTimer = function()
+            return activeTimer
+        end,
+        getSnapshot = GetTimerSnapshot,
+        isVisible = function()
+            return IsSplitTableEnabled()
+                and internal.IsSplitRecordingOverlayVisible
+                and internal.IsSplitRecordingOverlayVisible()
+        end,
+        isModeVisible = IsTimerModeVisible,
+    })
+end
+
+if internal.ConfigureBatchMode then
+    internal.ConfigureBatchMode({
+        isVisible = function()
+            return IsSplitTableEnabled() and internal.IsMultiRunMode and internal.IsMultiRunMode()
+        end,
+        isModeVisible = IsTimerModeVisible,
+    })
+end
+
+if internal.ConfigureRecorder then
+    internal.ConfigureRecorder({
+        readSetting = ReadSetting,
+        refreshDisplay = function()
+            RefreshTimerStructure()
+        end,
+    })
 end
 
 local function RefreshTimerText()
@@ -414,8 +414,8 @@ end
 
 StopAndCleanup = function()
     ClearActiveTimer()
-    if internal.StopBatch then
-        internal.StopBatch()
+    if internal.StopRecording then
+        internal.StopRecording()
     end
     updateThreadActive = false
     CleanupDisplay()
@@ -425,6 +425,10 @@ internal.RefreshTimerDisplay = RefreshTimerStructure
 internal.EnsureTimerDisplayLoop = StartTimerDisplayLoop
 
 function internal.OnSettingsCommitted()
+    if not IsModuleEnabled() then
+        StopAndCleanup()
+        return
+    end
     RefreshTimerStructure()
     StartTimerDisplayLoop()
 end
@@ -438,11 +442,11 @@ local function HandleRunFinalized()
         return
     end
     runFinalized = true
-    if internal.FinalizeBatchRun then
-        internal.FinalizeBatchRun(activeTimer, GetCurrentRun())
+    if internal.OnRecordingRunFinalized then
+        internal.OnRecordingRunFinalized(activeTimer, GetCurrentRun())
     end
     activeTimer:stop()
-    showCompletedRun = not IsMultiRunMode()
+    showCompletedRun = not (internal.IsMultiRunMode and internal.IsMultiRunMode())
     UpdateTimerSnapshot()
     RefreshTimerStructure()
 end
@@ -458,11 +462,8 @@ function internal.RegisterHooks()
         showCompletedRun = false
         UpdateTimerSnapshot()
         local run = baseFunc(prevRun, args)
-        if internal.StartSplitRun then
-            internal.StartSplitRun(run)
-        end
-        if internal.StartBatchRun then
-            internal.StartBatchRun()
+        if internal.OnRecordingRunStarted then
+            internal.OnRecordingRunStarted(run)
         end
         RefreshTimerStructure()
         return run

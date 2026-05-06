@@ -18,6 +18,10 @@ local BIOME_LABELS = {
 }
 
 local splitState = {
+    started = false,
+    active = false,
+    failed = false,
+    completed = false,
     routeType = nil,
     route = nil,
     captured = {},
@@ -51,6 +55,25 @@ local splitRows = {
     },
 }
 
+local function clearRow(row)
+    row.label = ""
+    row.igt = ""
+    row.rta = ""
+    row.lrt = ""
+end
+
+local function clearSplitRows()
+    clearRow(splitRows.header)
+    splitRows.header.label = "Biome"
+    splitRows.header.igt = "IGT"
+    splitRows.header.rta = "RTA"
+    splitRows.header.lrt = "LrT"
+    for _, row in ipairs(splitRows.biomes) do
+        clearRow(row)
+    end
+    clearRow(splitRows.total)
+end
+
 local function getCurrentRun()
     return rom and rom.game and rom.game.CurrentRun or CurrentRun
 end
@@ -82,12 +105,25 @@ local function detectRoute(run)
 end
 
 function internal.StartSplitRun(run)
-    local routeType, route = detectRoute(run or getCurrentRun())
+    if not splitState.started then
+        return
+    end
+
+    run = run or getCurrentRun()
+    local routeType, route = detectRoute(run)
+    if routeType == nil then
+        return
+    end
+
+    splitState.active = true
+    splitState.failed = false
+    splitState.completed = false
     splitState.routeType = routeType
     splitState.route = route
     splitState.captured = {}
     splitState.currentIndex = nil
     splitState.currentBiome = nil
+    clearSplitRows()
 end
 
 local function captureTime(timer, mode)
@@ -129,6 +165,10 @@ local function formatTime(value)
 end
 
 function internal.RecordCompletedBiomeSplits(timer, run)
+    if not splitState.active then
+        return false
+    end
+
     run = run or getCurrentRun()
     if not (timer and run and run.BiomeVisitOrder) then
         return false
@@ -154,6 +194,82 @@ function internal.RecordCompletedBiomeSplits(timer, run)
         end
     end
     return changed
+end
+
+local function isSuccessRun(run)
+    if not run then
+        return false
+    end
+    if type(WasRunSuccess) == "function" and run.RunResult ~= nil then
+        return WasRunSuccess(run) == true
+    end
+    return run.Cleared == true
+end
+
+function internal.IsSingleRecordingVisible()
+    return splitState.started
+        and (splitState.active or splitState.completed or splitState.failed)
+end
+
+function internal.IsSingleRecordingStarted()
+    return splitState.started == true
+end
+
+function internal.GetSingleRecordingStatus()
+    if splitState.active then
+        return {
+            kind = "active",
+            text = "Recording current run",
+        }
+    end
+    if splitState.failed then
+        return {
+            kind = "failed",
+            text = "Recording failed",
+        }
+    end
+    if splitState.completed then
+        return {
+            kind = "recorded",
+            text = "Recording complete",
+        }
+    end
+    if splitState.started then
+        return {
+            kind = "ready",
+            text = "Recording ready",
+        }
+    end
+    return {
+        kind = "idle",
+        text = "Not recording",
+    }
+end
+
+function internal.ClearSingleRecording(keepStarted)
+    splitState.started = keepStarted == true
+    splitState.active = false
+    splitState.failed = false
+    splitState.completed = false
+    splitState.routeType = nil
+    splitState.route = nil
+    splitState.captured = {}
+    splitState.currentIndex = nil
+    splitState.currentBiome = nil
+    clearSplitRows()
+end
+
+function internal.FinalizeSingleRecording(timer, run)
+    if not splitState.active then
+        return
+    end
+
+    run = run or getCurrentRun()
+    internal.RecordCompletedBiomeSplits(timer, run)
+    internal.UpdateSplitDisplayRows(timer, run)
+    splitState.active = false
+    splitState.completed = isSuccessRun(run)
+    splitState.failed = not splitState.completed
 end
 
 local function getRoute(run)

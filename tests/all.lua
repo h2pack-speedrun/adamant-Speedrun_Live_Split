@@ -1,6 +1,6 @@
 SpeedrunTimerInternal = {}
 local runtimeValues = {
-    BatchRecordingArmed = false,
+    RecordingReady = false,
 }
 local fakeTime = 0
 _worldTime = 0
@@ -110,6 +110,7 @@ lib = {
 dofile("src/timer/OverlayRows.lua")
 dofile("src/timer/Splits.lua")
 dofile("src/timer/Batch.lua")
+dofile("src/timer/Recorder.lua")
 dofile("src/timer/Runtime.lua")
 SpeedrunTimerInternal.EnsureTimerDisplayLoop = function() end
 SpeedrunTimerInternal.store = {
@@ -117,7 +118,7 @@ SpeedrunTimerInternal.store = {
         if alias == "ShowSplitTable" then
             return true
         end
-        if alias == "SplitMode" then
+        if alias == "RecordingMode" then
             return "multi"
         end
         if alias == "BatchTargetRuns" then
@@ -194,6 +195,7 @@ SpeedrunTimerInternal.ConfigureSplitOverlays({
     end,
 })
 
+SpeedrunTimerInternal.ClearSingleRecording(true)
 SpeedrunTimerInternal.StartSplitRun({
     CurrentRoom = { RoomSetName = "F" },
 })
@@ -247,10 +249,10 @@ assertEqual(row.label, "Erebus")
 assertEqual(row.igt, "01:05.43")
 assertEqual(row.rta, "00:13.45")
 
-SpeedrunTimerInternal.StartBatch(2)
-assertBatchStatusText("Armed for 2 runs")
-assertEqual(SpeedrunTimerInternal.GetBatchStatus().kind, "armed")
-assertEqual(runtimeValues.BatchRecordingArmed, true)
+SpeedrunTimerInternal.StartRecording(2)
+assertBatchStatusText("Recording ready for 2 runs")
+assertEqual(SpeedrunTimerInternal.GetBatchStatus().kind, "ready")
+assertEqual(runtimeValues.RecordingReady, true)
 assertEqual(SpeedrunTimerInternal.GetBatchDisplayTime("rta"), nil)
 SpeedrunTimerInternal.StartBatchRun()
 assertEqual(SpeedrunTimerInternal.GetBatchStatus().kind, "active")
@@ -296,7 +298,7 @@ SpeedrunTimerInternal.UpdateBatchDisplayRows()
 assertEqual(SpeedrunTimerInternal.GetBatchDisplayRow(1).label, "")
 assertEqual(SpeedrunTimerInternal.GetBatchCurrentDisplayRow().label, "Current 1/2")
 
-SpeedrunTimerInternal.StartBatch(3)
+SpeedrunTimerInternal.StartRecording(3)
 SpeedrunTimerInternal.StartBatchRun()
 fakeTime = 240
 SpeedrunTimerInternal.UpdateBatchTimer()
@@ -309,13 +311,13 @@ SpeedrunTimerInternal.FinalizeBatchRun({
 })
 assertBatchStatusText("Failed (0 / 3 complete)")
 assertEqual(SpeedrunTimerInternal.GetBatchStatus().kind, "failed")
-assertEqual(runtimeValues.BatchRecordingArmed, true)
+assertEqual(runtimeValues.RecordingReady, true)
 SpeedrunTimerInternal.StartBatchRun()
 SpeedrunTimerInternal.UpdateBatchDisplayRows()
 assertEqual(SpeedrunTimerInternal.GetBatchDisplayRow(1).label, "")
 assertEqual(SpeedrunTimerInternal.GetBatchCurrentDisplayRow().label, "Current 1/3")
 
-runtimeValues.BatchRecordingArmed = true
+runtimeValues.RecordingReady = true
 SpeedrunTimerInternal.store.read = function(alias)
     if alias == "BatchTargetRuns" then
         return 4
@@ -323,14 +325,40 @@ SpeedrunTimerInternal.store.read = function(alias)
     if alias == "ShowSplitTable" then
         return true
     end
-    if alias == "SplitMode" then
+    if alias == "RecordingMode" then
         return "multi"
     end
     return nil
 end
 SpeedrunTimerInternal.InitializeBatchState()
-assertBatchStatusText("Armed for 4 runs")
-assertEqual(runtimeValues.BatchRecordingArmed, true)
+SpeedrunTimerInternal.InitializeRecordingState()
+assertBatchStatusText("Recording ready for 4 runs")
+assertEqual(runtimeValues.RecordingReady, true)
+SpeedrunTimerInternal.OnRecordingRunStarted({
+    CurrentRoom = { RoomSetName = "N" },
+})
+assertEqual(SpeedrunTimerInternal.GetBatchStatus().kind, "active")
+assertEqual(SpeedrunTimerInternal.IsSplitRecordingOverlayVisible(), true)
+row = SpeedrunTimerInternal.GetSplitDisplayRow(1, timer, {
+    CurrentRoom = { RoomSetName = "N" },
+    EnteredBiomes = 1,
+})
+assertEqual(row.label, "Ephyra")
+
+SpeedrunTimerInternal.store.read = function(alias)
+    if alias == "RecordingMode" then
+        return "single"
+    end
+    if alias == "BatchTargetRuns" then
+        return 4
+    end
+    return nil
+end
+SpeedrunTimerInternal.SyncRecordingMode()
+assertEqual(SpeedrunTimerInternal.GetRecordingStatus().kind, "ready")
+SpeedrunTimerInternal.StopRecording()
+assertEqual(runtimeValues.RecordingReady, false)
+assertEqual(SpeedrunTimerInternal.GetRecordingStatus().kind, "idle")
 
 lib.widgets = {
     text = function() end,
@@ -348,7 +376,7 @@ local uiSessionValues = {
     ShowLrT = false,
     ShowLiveTimers = true,
     ShowSplitTable = true,
-    SplitMode = "single",
+    RecordingMode = "single",
 }
 SpeedrunTimerInternal.DrawTab({
     SameLine = function() end,

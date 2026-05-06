@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Split recording now uses explicit Start/Clear/Stop controls for both single-run and multi-run modes.
+- Single-run timer results now persist after the victory screen until the next run or recording reset.
+
 ## [1.1.1] - 2026-05-05
 
 ### Changed

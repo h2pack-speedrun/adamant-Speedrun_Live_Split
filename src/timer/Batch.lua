@@ -16,7 +16,7 @@ for index = 1, MAX_BATCH_RUNS do
 end
 
 local batchState = {
-    armed = false,
+    ready = false,
     active = false,
     failed = false,
     targetRuns = 0,
@@ -166,30 +166,6 @@ local function readStore(alias)
     return nil
 end
 
-local function getRuntimeState()
-    local store = internal.store
-    if store and store.getRuntimeState then
-        return store.getRuntimeState()
-    end
-    return nil
-end
-
-local function readRuntime(alias)
-    local runtime = getRuntimeState()
-    return runtime and runtime.read(alias) or nil
-end
-
-local function writeRuntime(alias, value)
-    local runtime = getRuntimeState()
-    if runtime then
-        runtime.write(alias, value)
-    end
-end
-
-local function persistRecordingState()
-    writeRuntime("BatchRecordingArmed", batchState.armed == true)
-end
-
 function internal.IsBatchActive()
     return batchState.active == true
 end
@@ -218,10 +194,10 @@ function internal.GetBatchStatus()
             text = ("Recorded %d / %d"):format(batchState.completedRuns, batchState.targetRuns),
         }
     end
-    if batchState.armed then
+    if batchState.ready then
         return {
-            kind = "armed",
-            text = ("Armed for %d runs"):format(batchState.targetRuns),
+            kind = "ready",
+            text = ("Recording ready for %d runs"):format(batchState.targetRuns),
         }
     end
     return {
@@ -269,30 +245,29 @@ local function clearBatchDisplay(refresh)
 end
 
 function internal.StartBatch(targetRuns)
-    batchState.armed = true
+    batchState.ready = true
     batchState.targetRuns = clampTargetRuns(targetRuns)
     clearBatchDisplay(false)
-    persistRecordingState()
     refreshDisplay()
 end
 
 function internal.StopBatch()
-    batchState.armed = false
+    batchState.ready = false
     clearBatchDisplay(true)
-    persistRecordingState()
 end
 
-function internal.ClearBatch(targetRuns)
+function internal.ClearBatch(targetRuns, refresh)
     if targetRuns ~= nil then
         batchState.targetRuns = clampTargetRuns(targetRuns)
     end
     clearBatchDisplay(false)
-    persistRecordingState()
-    refreshDisplay()
+    if refresh ~= false then
+        refreshDisplay()
+    end
 end
 
 function internal.StartBatchRun()
-    if not batchState.armed then
+    if not batchState.ready then
         return
     end
     if not batchState.active then
@@ -307,7 +282,6 @@ function internal.StartBatchRun()
         batchState.timer:start()
     end
     batchState.currentRunActive = true
-    persistRecordingState()
 end
 
 function internal.UpdateBatchTimer()
@@ -358,7 +332,6 @@ function internal.FinalizeBatchRun(activeTimer, run)
         if batchState.completedRuns >= batchState.targetRuns then
             finishCurrentBatch()
         end
-        persistRecordingState()
         return
     end
 
@@ -371,15 +344,12 @@ function internal.FinalizeBatchRun(activeTimer, run)
         lrt = formatTime(getBatchLrt()),
     }
     finishCurrentBatch()
-    persistRecordingState()
 end
 
 function internal.InitializeBatchState()
-    local wasArmed = readRuntime("BatchRecordingArmed") == true
-    batchState.armed = wasArmed
+    batchState.ready = false
     batchState.targetRuns = clampTargetRuns(readStore("BatchTargetRuns"))
     resetCurrentBatch(true)
-    persistRecordingState()
     refreshDisplay()
 end
 

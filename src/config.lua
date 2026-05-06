@@ -6,7 +6,7 @@ return {
     ShowLrT = false,
     ShowLiveTimers = true,
     ShowSplitTable = true,
-    SplitMode = "single",
+    RecordingMode = "single",
     BatchTargetRuns = 3,
-    BatchRecordingArmed = false,
+    RecordingReady = false,
 }

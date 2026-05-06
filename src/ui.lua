@@ -17,8 +17,8 @@ local TIMER_MODE_OPTIONS = {
         tooltip = "Show real time with map-load time removed.",
     },
 }
-local SPLIT_MODE_VALUES = { "single", "multi" }
-local SPLIT_MODE_LABELS = {
+local RECORDING_MODE_VALUES = { "single", "multi" }
+local RECORDING_MODE_LABELS = {
     single = "Single run",
     multi = "Multi-run batch",
 }
@@ -26,7 +26,7 @@ local MUTED_TEXT_COLOR = { 0.65, 0.65, 0.65, 1.0 }
 local WARNING_TEXT_COLOR = { 1.0, 0.78, 0.35, 1.0 }
 local STATUS_TEXT_COLORS = {
     active = { 0.45, 0.85, 1.0, 1.0 },
-    armed = { 0.55, 0.95, 0.55, 1.0 },
+    ready = { 0.55, 0.95, 0.55, 1.0 },
     failed = WARNING_TEXT_COLOR,
     recorded = { 0.80, 0.82, 0.88, 1.0 },
     idle = MUTED_TEXT_COLOR,
@@ -60,58 +60,60 @@ local function readBool(session, alias, fallback)
     return value == true
 end
 
-local function readSplitMode(session)
-    local mode = session.read("SplitMode")
+local function readRecordingMode(session)
+    local mode = session.read("RecordingMode")
     if mode == "single" or mode == "multi" then
         return mode
     end
-    session.write("SplitMode", "single")
+    session.write("RecordingMode", "single")
     return "single"
 end
 
-local function drawBatchControls(ui, session)
-    local status = internal.GetBatchStatus and internal.GetBatchStatus() or nil
+local function drawRecordingControls(ui, session, recordingMode)
+    local status = internal.GetRecordingStatus and internal.GetRecordingStatus() or nil
     local statusText = status and status.text or "Not recording"
     local statusKind = status and status.kind or "idle"
     lib.widgets.text(ui, "Status: " .. statusText, {
         color = STATUS_TEXT_COLORS[statusKind] or MUTED_TEXT_COLOR,
     })
 
-    lib.widgets.stepper(ui, session, "BatchTargetRuns", {
-        label = "Runs to record",
-        min = 1,
-        max = 10,
-        default = 3,
-    })
+    if recordingMode == "multi" then
+        lib.widgets.stepper(ui, session, "BatchTargetRuns", {
+            label = "Runs to record",
+            min = 1,
+            max = 10,
+            default = 3,
+        })
+    end
 
     local targetRuns = session.read("BatchTargetRuns") or 3
     lib.widgets.button(ui, "Start Recording", {
-        id = "batch_start",
+        id = "recording_start",
         onClick = function()
-            if internal.StartBatch then
-                internal.StartBatch(targetRuns)
+            if internal.StartRecording then
+                internal.StartRecording(targetRuns)
             end
         end,
     })
     ui.SameLine()
-    lib.widgets.button(ui, "Clear Batch", {
-        id = "batch_clear",
+    lib.widgets.button(ui, "Clear Results", {
+        id = "recording_clear",
         onClick = function()
-            if internal.ClearBatch then
-                internal.ClearBatch(targetRuns)
+            if internal.ClearRecording then
+                internal.ClearRecording(targetRuns)
             end
         end,
     })
     ui.SameLine()
     lib.widgets.button(ui, "Stop Recording", {
-        id = "batch_stop",
+        id = "recording_stop",
         onClick = function()
-            if internal.StopBatch then
-                internal.StopBatch()
+            if internal.StopRecording then
+                internal.StopRecording()
             end
         end,
     })
-    lib.widgets.text(ui, "Recording stays armed until stopped.", {
+    lib.widgets.text(ui, "Recording stays ready until stopped or the module is disabled.", {
         color = MUTED_TEXT_COLOR,
     })
 end
@@ -149,17 +151,22 @@ function internal.DrawTab(ui, session)
     end
 
     if showSplitTable then
-        drawSection(ui, "Split Mode")
-        lib.widgets.radio(ui, session, "SplitMode", {
-            values = SPLIT_MODE_VALUES,
+        drawSection(ui, "Recording Mode")
+        lib.widgets.radio(ui, session, "RecordingMode", {
+            values = RECORDING_MODE_VALUES,
             default = "single",
-            displayValues = SPLIT_MODE_LABELS,
+            displayValues = RECORDING_MODE_LABELS,
             optionsPerLine = 2,
         })
 
-        if readSplitMode(session) == "multi" then
-            drawSection(ui, "Batch Recording")
-            drawBatchControls(ui, session)
+        local recordingMode = readRecordingMode(session)
+        drawSection(ui, "Recording")
+        drawRecordingControls(ui, session, recordingMode)
+        local status = internal.GetRecordingStatus and internal.GetRecordingStatus() or nil
+        if not status or status.kind == "idle" then
+            lib.widgets.text(ui,
+                "Split table is enabled, but recording is not started. Press Start Recording to begin tracking runs.",
+                { color = WARNING_TEXT_COLOR })
         end
     end
 end

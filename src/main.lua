@@ -75,6 +75,9 @@ local function init()
     if internal.InitializeBatchState then
         internal.InitializeBatchState()
     end
+    if internal.InitializeRecordingState then
+        internal.InitializeRecordingState()
+    end
 
     if internal.RegisterPublicApi then
         internal.RegisterPublicApi()
