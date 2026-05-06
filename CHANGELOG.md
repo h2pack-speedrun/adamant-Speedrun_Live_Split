@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-05-06
+
 ### Changed
 
 - Split recording now uses explicit Start/Clear/Stop controls for both single-run and multi-run modes.
@@ -37,7 +39,8 @@
 
 Initial release
 
-[unreleased]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.1...HEAD
+[unreleased]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.2...HEAD
+[1.1.2]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.1...1.1.2
 [1.1.1]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.0.0...1.1.0
 [1.0.0]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/634e4468165e8839e160039a7a5d3e751344e5dd...1.0.0
