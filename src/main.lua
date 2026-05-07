@@ -11,7 +11,6 @@ modutil = mods['SGG_Modding-ModUtil']
 lib = mods['adamant-ModpackLib']
 local chalk = mods['SGG_Modding-Chalk']
 local reload = mods['SGG_Modding-ReLoad']
-local dataDefaults = import("config.lua")
 local config = chalk.auto('config.lua')
 
 local PACK_ID = "speedrun"
@@ -59,11 +58,10 @@ local function init()
     import("logic.lua")
     import("ui.lua")
 
-    local definition = lib.prepareDefinition(internal, dataDefaults, {
+    local definition = lib.prepareDefinition(internal, {
         id = MODULE_ID,
         name = "Speedrun Timer",
         tooltip = "Displays selected timer modes on screen during runs.",
-        default = dataDefaults.Enabled,
         affectsRunData = false,
         modpack = PACK_ID,
         storage = internal.BuildStorage(),
