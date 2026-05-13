@@ -15,7 +15,7 @@ globals = {
     "RtaTimer",
     "Timer",
     "ScreenAnchors",
-    "SpeedrunTimerInternal",
+    "MODULE_ANCHOR",
     "lib"
     }
 read_globals = {

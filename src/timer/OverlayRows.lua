@@ -1,12 +1,11 @@
-SpeedrunTimerInternal = SpeedrunTimerInternal or {}
-local internal = SpeedrunTimerInternal
+local timerApi = ...
 
 local OVERLAY_REGION = "middleRightStack"
 local LABEL_FONT = "P22UndergroundSCMedium"
 local VALUE_FONT = "NumericP22UndergroundSCMedium"
 
-internal.TimerOverlay = internal.TimerOverlay or {}
-local timerOverlay = internal.TimerOverlay
+timerApi.TimerOverlay = timerApi.TimerOverlay or {}
+local timerOverlay = timerApi.TimerOverlay
 
 timerOverlay.region = OVERLAY_REGION
 

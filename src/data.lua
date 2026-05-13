@@ -1,6 +1,6 @@
-local internal = SpeedrunTimerInternal
+local data = {}
 
-function internal.BuildStorage()
+function data.buildStorage()
     return {
         {
             type = "bool",
@@ -49,8 +49,4 @@ function internal.BuildStorage()
     }
 end
 
-import("timer/RtaTimer.lua")
-import("timer/LrtTimer.lua")
-import("timer/IgtTimer.lua")
-
-return internal
+return data

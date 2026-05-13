@@ -17,49 +17,38 @@ local PACK_ID = "speedrun"
 local MODULE_ID = "SpeedrunTimer"
 local PLUGIN_GUID = _PLUGIN.guid
 
----@class SpeedrunTimerInternal
----@field store ManagedStore|nil
+---@class SpeedrunTimerModuleAnchor
 ---@field standaloneUi StandaloneRuntime|nil
----@field PACK_ID string|nil
----@field MODULE_ID string|nil
----@field BuildStorage fun(): StorageSchema[]|nil
----@field RegisterHooks fun(host: AuthorHost, store: ManagedStore)|nil
----@field DrawTab fun(imgui: table, session: AuthorSession, host: AuthorHost)|nil
----@field DrawQuickContent fun(imgui: table, session: AuthorSession, host: AuthorHost)|nil
----@field RegisterPublicApi fun()|nil
-SpeedrunTimerInternal = SpeedrunTimerInternal or {}
----@type SpeedrunTimerInternal
-local internal = SpeedrunTimerInternal
+MODULE_ANCHOR = MODULE_ANCHOR or {}
+---@type SpeedrunTimerModuleAnchor
+local moduleAnchor = MODULE_ANCHOR
 
-internal.PACK_ID = PACK_ID
-internal.MODULE_ID = MODULE_ID
-
-internal.standaloneUi = nil
+moduleAnchor.standaloneUi = nil
 
 local loader = reload.auto_single()
 
 local function registerGui()
     rom.gui.add_imgui(function()
-        if internal.standaloneUi and internal.standaloneUi.renderWindow then
-            internal.standaloneUi.renderWindow()
+        if moduleAnchor.standaloneUi and moduleAnchor.standaloneUi.renderWindow then
+            moduleAnchor.standaloneUi.renderWindow()
         end
     end)
 
     rom.gui.add_to_menu_bar(function()
-        if internal.standaloneUi and internal.standaloneUi.addMenuBar then
-            internal.standaloneUi.addMenuBar()
+        if moduleAnchor.standaloneUi and moduleAnchor.standaloneUi.addMenuBar then
+            moduleAnchor.standaloneUi.addMenuBar()
         end
     end)
 end
 
 local function init()
     import_as_fallback(rom.game)
-    import("data.lua")
-    import("logic.lua")
-    import("ui.lua")
+    local data = import("data.lua")
+    local logic = import("logic.lua").bind()
+    local ui = import("ui.lua").bind(logic)
 
     local host, store = lib.createModule({
-        owner = internal,
+        owner = moduleAnchor,
         pluginGuid = PLUGIN_GUID,
         config = config,
         definition = {
@@ -67,27 +56,18 @@ local function init()
             name = "Speedrun Timer",
             tooltip = "Displays selected timer modes on screen during runs.",
             modpack = PACK_ID,
-            storage = internal.BuildStorage(),
+            storage = data.buildStorage(),
         },
-        onSettingsCommitted = internal.OnSettingsCommitted,
-        registerHooks = internal.RegisterHooks,
-        drawTab = internal.DrawTab,
-        drawQuickContent = internal.DrawQuickContent,
+        onSettingsCommitted = logic.onSettingsCommitted,
+        registerHooks = logic.registerHooks,
+        drawTab = ui.drawTab,
+        drawQuickContent = ui.drawQuickContent,
     })
-    internal.store = store
-    if internal.InitializeBatchState then
-        internal.InitializeBatchState()
-    end
-    if internal.InitializeRecordingState then
-        internal.InitializeRecordingState()
-    end
 
-    if internal.RegisterPublicApi then
-        internal.RegisterPublicApi()
-    end
+    logic.initialize(host, store)
 
     host.activate()
-    internal.standaloneUi = lib.standaloneHost(PLUGIN_GUID)
+    moduleAnchor.standaloneUi = lib.standaloneHost(PLUGIN_GUID)
 end
 
 modutil.once_loaded.game(function()

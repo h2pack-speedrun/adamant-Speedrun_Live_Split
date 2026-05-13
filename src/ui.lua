@@ -1,4 +1,5 @@
-local internal = SpeedrunTimerInternal
+local module = {}
+local logic = nil
 
 local TIMER_MODE_OPTIONS = {
     {
@@ -70,7 +71,7 @@ local function readRecordingMode(session)
 end
 
 local function drawRecordingControls(ui, session, recordingMode)
-    local status = internal.GetRecordingStatus and internal.GetRecordingStatus() or nil
+    local status = logic.getRecordingStatus()
     local statusText = status and status.text or "Not recording"
     local statusKind = status and status.kind or "idle"
     lib.widgets.text(ui, "Status: " .. statusText, {
@@ -90,27 +91,21 @@ local function drawRecordingControls(ui, session, recordingMode)
     lib.widgets.button(ui, "Start Recording", {
         id = "recording_start",
         onClick = function()
-            if internal.StartRecording then
-                internal.StartRecording(targetRuns)
-            end
+            logic.startRecording(targetRuns)
         end,
     })
     ui.SameLine()
     lib.widgets.button(ui, "Clear Results", {
         id = "recording_clear",
         onClick = function()
-            if internal.ClearRecording then
-                internal.ClearRecording(targetRuns)
-            end
+            logic.clearRecording(targetRuns)
         end,
     })
     ui.SameLine()
     lib.widgets.button(ui, "Stop Recording", {
         id = "recording_stop",
         onClick = function()
-            if internal.StopRecording then
-                internal.StopRecording()
-            end
+            logic.stopRecording()
         end,
     })
     lib.widgets.text(ui, "Recording stays ready until stopped or the module is disabled.", {
@@ -118,7 +113,7 @@ local function drawRecordingControls(ui, session, recordingMode)
     })
 end
 
-function internal.DrawTab(ui, session)
+function module.drawTab(ui, session)
     drawSection(ui, "Timer Columns", "Choose which timer values are shown in timer rows and split tables.")
     lib.widgets.text(ui, "At least one timer column is always shown.", {
         color = MUTED_TEXT_COLOR,
@@ -162,7 +157,7 @@ function internal.DrawTab(ui, session)
         local recordingMode = readRecordingMode(session)
         drawSection(ui, "Recording")
         drawRecordingControls(ui, session, recordingMode)
-        local status = internal.GetRecordingStatus and internal.GetRecordingStatus() or nil
+        local status = logic.getRecordingStatus()
         if not status or status.kind == "idle" then
             lib.widgets.text(ui,
                 "Split table is enabled, but recording is not started. Press Start Recording to begin tracking runs.",
@@ -171,7 +166,7 @@ function internal.DrawTab(ui, session)
     end
 end
 
-function internal.DrawQuickContent(ui, session)
+function module.drawQuickContent(ui, session)
     lib.widgets.checkbox(ui, session, "ShowLiveTimers", {
         label = "Show live timer rows",
         tooltip = "Show the compact IGT/RTA/LrT rows above the split table.",
@@ -183,4 +178,9 @@ function internal.DrawQuickContent(ui, session)
 
 end
 
-return internal
+function module.bind(moduleLogic)
+    logic = moduleLogic
+    return module
+end
+
+return module

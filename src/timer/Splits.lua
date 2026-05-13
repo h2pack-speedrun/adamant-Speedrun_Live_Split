@@ -1,5 +1,4 @@
-SpeedrunTimerInternal = SpeedrunTimerInternal or {}
-local internal = SpeedrunTimerInternal
+local timerApi = ...
 
 local ROUTES = {
     underworld = { "F", "G", "H", "I" },
@@ -104,7 +103,7 @@ local function detectRoute(run)
     return "underworld", cloneRoute(ROUTES.underworld)
 end
 
-function internal.StartSplitRun(run)
+function timerApi.StartSplitRun(run)
     if not splitState.started then
         return
     end
@@ -161,10 +160,10 @@ local function formatTime(value)
     if value == nil then
         return ""
     end
-    return internal.FormatTimestamp(value)
+    return timerApi.FormatTimestamp(value)
 end
 
-function internal.RecordCompletedBiomeSplits(timer, run)
+function timerApi.RecordCompletedBiomeSplits(timer, run)
     if not splitState.active then
         return false
     end
@@ -206,16 +205,16 @@ local function isSuccessRun(run)
     return run.Cleared == true
 end
 
-function internal.IsSingleRecordingVisible()
+function timerApi.IsSingleRecordingVisible()
     return splitState.started
         and (splitState.active or splitState.completed or splitState.failed)
 end
 
-function internal.IsSingleRecordingStarted()
+function timerApi.IsSingleRecordingStarted()
     return splitState.started == true
 end
 
-function internal.GetSingleRecordingStatus()
+function timerApi.GetSingleRecordingStatus()
     if splitState.active then
         return {
             kind = "active",
@@ -246,7 +245,7 @@ function internal.GetSingleRecordingStatus()
     }
 end
 
-function internal.ClearSingleRecording(keepStarted)
+function timerApi.ClearSingleRecording(keepStarted)
     splitState.started = keepStarted == true
     splitState.active = false
     splitState.failed = false
@@ -259,14 +258,14 @@ function internal.ClearSingleRecording(keepStarted)
     clearSplitRows()
 end
 
-function internal.FinalizeSingleRecording(timer, run)
+function timerApi.FinalizeSingleRecording(timer, run)
     if not splitState.active then
         return
     end
 
     run = run or getCurrentRun()
-    internal.RecordCompletedBiomeSplits(timer, run)
-    internal.UpdateSplitDisplayRows(timer, run)
+    timerApi.RecordCompletedBiomeSplits(timer, run)
+    timerApi.UpdateSplitDisplayRows(timer, run)
     splitState.active = false
     splitState.completed = isSuccessRun(run)
     splitState.failed = not splitState.completed
@@ -274,7 +273,7 @@ end
 
 local function getRoute(run)
     if splitState.routeType == nil then
-        internal.StartSplitRun(run)
+        timerApi.StartSplitRun(run)
     end
     if splitState.routeType == "dream" then
         return run and run.BiomeVisitOrder or EMPTY_ROUTE
@@ -380,7 +379,7 @@ local function updateTrackedSplitRow(index, timer, run, route, snapshot)
     markChangedRow("biome" .. index, row, previousLabel, previousIgt, previousRta, previousLrt)
 end
 
-function internal.UpdateSplitDisplayRows(timer, run)
+function timerApi.UpdateSplitDisplayRows(timer, run)
     run = run or getCurrentRun()
     local route = getRoute(run)
     local snapshot = getSnapshot()
@@ -393,12 +392,12 @@ function internal.UpdateSplitDisplayRows(timer, run)
     splitState.currentIndex, splitState.currentBiome = getCurrentRouteIndex(run, route)
 end
 
-function internal.UpdateLiveSplitDisplayRows(timer, run)
+function timerApi.UpdateLiveSplitDisplayRows(timer, run)
     run = run or getCurrentRun()
     local route = getRoute(run)
     local currentIndex, currentBiome = getCurrentRouteIndex(run, route)
     if currentIndex ~= splitState.currentIndex or currentBiome ~= splitState.currentBiome then
-        internal.UpdateSplitDisplayRows(timer, run)
+        timerApi.UpdateSplitDisplayRows(timer, run)
         return true
     end
 
@@ -411,7 +410,7 @@ function internal.UpdateLiveSplitDisplayRows(timer, run)
     return false
 end
 
-function internal.GetSplitDisplayRow(index, timer, run)
+function timerApi.GetSplitDisplayRow(index, timer, run)
     run = run or getCurrentRun()
     local route = getRoute(run)
     local row = splitRows.biomes[index]
@@ -426,7 +425,7 @@ function internal.GetSplitDisplayRow(index, timer, run)
     return row
 end
 
-function internal.GetSplitTotalRow(timer)
+function timerApi.GetSplitTotalRow(timer)
     updateTotalRow(timer, getSnapshot())
     return splitRows.total
 end
@@ -443,7 +442,7 @@ local function modeVisible(mode)
 end
 
 local function registerSplitRow(key, orderOffset, row)
-    return internal.TimerOverlay.registerTableRow(splitOverlays, key, {
+    return timerApi.TimerOverlay.registerTableRow(splitOverlays, key, {
         idPrefix = "speedrun.timer.split.",
         componentPrefix = "SpeedrunTimer_Split_",
         order = overlayConfig.order + orderOffset,
@@ -455,11 +454,11 @@ local function registerSplitRow(key, orderOffset, row)
     })
 end
 
-function internal.ConfigureSplitOverlays(config)
+function timerApi.ConfigureSplitOverlays(config)
     overlayConfig = config
 end
 
-function internal.EnsureSplitOverlays()
+function timerApi.EnsureSplitOverlays()
     if not overlayConfig then
         return
     end
@@ -473,19 +472,19 @@ function internal.EnsureSplitOverlays()
     registerSplitRow("total", 5, splitRows.total)
 end
 
-function internal.RefreshSplitDisplay()
+function timerApi.RefreshSplitDisplay()
     if overlayConfig then
-        internal.UpdateSplitDisplayRows(overlayConfig.getTimer())
+        timerApi.UpdateSplitDisplayRows(overlayConfig.getTimer())
     end
-    internal.EnsureSplitOverlays()
-    lib.overlays.refreshStackedText(internal.TimerOverlay.region)
+    timerApi.EnsureSplitOverlays()
+    lib.overlays.refreshStackedText(timerApi.TimerOverlay.region)
 end
 
-function internal.RefreshSplitText(timer)
-    local needsStructureRefresh = internal.UpdateLiveSplitDisplayRows(timer)
+function timerApi.RefreshSplitText(timer)
+    local needsStructureRefresh = timerApi.UpdateLiveSplitDisplayRows(timer)
     if needsStructureRefresh then
-        internal.EnsureSplitOverlays()
-        lib.overlays.refreshStackedText(internal.TimerOverlay.region)
+        timerApi.EnsureSplitOverlays()
+        lib.overlays.refreshStackedText(timerApi.TimerOverlay.region)
         liveSplitKeys = {}
         return
     end
@@ -498,4 +497,4 @@ function internal.RefreshSplitText(timer)
     liveSplitKeys = {}
 end
 
-return internal
+return timerApi

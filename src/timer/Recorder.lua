@@ -1,5 +1,4 @@
-SpeedrunTimerInternal = SpeedrunTimerInternal or {}
-local internal = SpeedrunTimerInternal
+local timerApi = ...
 
 local config = nil
 local currentMode = nil
@@ -19,12 +18,12 @@ local function refreshDisplay()
 end
 
 local function readUnstaged(alias)
-    local store = internal.store
+    local store = timerApi.store
     return store and store.read and store.read(alias) or nil
 end
 
 local function writeUnstaged(alias, value)
-    local store = internal.store
+    local store = timerApi.store
     if store and store.writeUnstaged then
         store.writeUnstaged(alias, value)
     end
@@ -50,43 +49,43 @@ local function readTargetRuns()
 end
 
 local function clearSingleRecording(keepReady)
-    if internal.ClearSingleRecording then
-        internal.ClearSingleRecording(keepReady == true)
+    if timerApi.ClearSingleRecording then
+        timerApi.ClearSingleRecording(keepReady == true)
     end
 end
 
 local function clearBatchRecording(targetRuns)
-    if internal.ClearBatch then
-        internal.ClearBatch(targetRuns, false)
+    if timerApi.ClearBatch then
+        timerApi.ClearBatch(targetRuns, false)
     end
 end
 
 local function startBatchRecording(targetRuns)
-    if internal.StartBatch then
-        internal.StartBatch(targetRuns)
+    if timerApi.StartBatch then
+        timerApi.StartBatch(targetRuns)
     end
 end
 
 local function stopBatchRecording()
-    if internal.StopBatch then
-        internal.StopBatch()
+    if timerApi.StopBatch then
+        timerApi.StopBatch()
     end
 end
 
-function internal.ConfigureRecorder(opts)
+function timerApi.ConfigureRecorder(opts)
     config = opts or {}
 end
 
-function internal.GetRecordingMode()
+function timerApi.GetRecordingMode()
     return readRecordingMode()
 end
 
-function internal.IsSingleRunMode()
-    return internal.GetRecordingMode() == "single"
+function timerApi.IsSingleRunMode()
+    return timerApi.GetRecordingMode() == "single"
 end
 
-function internal.IsMultiRunMode()
-    return internal.GetRecordingMode() == "multi"
+function timerApi.IsMultiRunMode()
+    return timerApi.GetRecordingMode() == "multi"
 end
 
 local function isRecordingReady()
@@ -98,7 +97,7 @@ local function setRecordingReady(started)
     persistRecordingReady()
 end
 
-function internal.SyncRecordingMode()
+function timerApi.SyncRecordingMode()
     local previousMode = currentMode
     local nextMode = readRecordingMode()
     currentMode = nextMode
@@ -113,24 +112,24 @@ function internal.SyncRecordingMode()
 
     if nextMode == "single"
         and isRecordingReady()
-        and internal.IsSingleRecordingStarted
-        and not internal.IsSingleRecordingStarted() then
+        and timerApi.IsSingleRecordingStarted
+        and not timerApi.IsSingleRecordingStarted() then
 
         clearSingleRecording(true)
     end
 end
 
-function internal.IsSplitRecordingOverlayVisible()
-    return internal.IsSingleRecordingVisible
-        and internal.IsSingleRecordingVisible()
+function timerApi.IsSplitRecordingOverlayVisible()
+    return timerApi.IsSingleRecordingVisible
+        and timerApi.IsSingleRecordingVisible()
 end
 
-function internal.GetRecordingStatus()
-    if internal.IsMultiRunMode() and internal.GetBatchStatus then
-        return internal.GetBatchStatus()
+function timerApi.GetRecordingStatus()
+    if timerApi.IsMultiRunMode() and timerApi.GetBatchStatus then
+        return timerApi.GetBatchStatus()
     end
-    if internal.GetSingleRecordingStatus then
-        return internal.GetSingleRecordingStatus()
+    if timerApi.GetSingleRecordingStatus then
+        return timerApi.GetSingleRecordingStatus()
     end
     return {
         kind = "idle",
@@ -138,9 +137,9 @@ function internal.GetRecordingStatus()
     }
 end
 
-function internal.StartRecording(targetRuns)
+function timerApi.StartRecording(targetRuns)
     setRecordingReady(true)
-    if internal.IsMultiRunMode() then
+    if timerApi.IsMultiRunMode() then
         clearSingleRecording(true)
         startBatchRecording(targetRuns)
     else
@@ -150,39 +149,39 @@ function internal.StartRecording(targetRuns)
     refreshDisplay()
 end
 
-function internal.ClearRecording(targetRuns)
+function timerApi.ClearRecording(targetRuns)
     clearBatchRecording(targetRuns)
     clearSingleRecording(isRecordingReady())
     refreshDisplay()
 end
 
-function internal.StopRecording()
+function timerApi.StopRecording()
     setRecordingReady(false)
     stopBatchRecording()
     clearSingleRecording(false)
     refreshDisplay()
 end
 
-function internal.OnRecordingRunStarted(run)
-    if isRecordingReady() and internal.StartSplitRun then
-        internal.StartSplitRun(run)
+function timerApi.OnRecordingRunStarted(run)
+    if isRecordingReady() and timerApi.StartSplitRun then
+        timerApi.StartSplitRun(run)
     end
-    if internal.IsMultiRunMode() and internal.StartBatchRun then
-        internal.StartBatchRun()
+    if timerApi.IsMultiRunMode() and timerApi.StartBatchRun then
+        timerApi.StartBatchRun()
     end
 end
 
-function internal.OnRecordingRunFinalized(timer, run)
-    if internal.IsMultiRunMode() then
-        if internal.FinalizeBatchRun then
-            internal.FinalizeBatchRun(timer, run)
+function timerApi.OnRecordingRunFinalized(timer, run)
+    if timerApi.IsMultiRunMode() then
+        if timerApi.FinalizeBatchRun then
+            timerApi.FinalizeBatchRun(timer, run)
         end
-    elseif internal.FinalizeSingleRecording then
-        internal.FinalizeSingleRecording(timer, run)
+    elseif timerApi.FinalizeSingleRecording then
+        timerApi.FinalizeSingleRecording(timer, run)
     end
 end
 
-function internal.InitializeRecordingState()
+function timerApi.InitializeRecordingState()
     recordingReady = readUnstaged("RecordingReady") == true
     currentMode = readRecordingMode()
 
@@ -194,4 +193,4 @@ function internal.InitializeRecordingState()
     persistRecordingReady()
 end
 
-return internal
+return timerApi
