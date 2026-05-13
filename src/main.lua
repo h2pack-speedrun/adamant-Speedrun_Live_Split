@@ -23,9 +23,9 @@ local PLUGIN_GUID = _PLUGIN.guid
 ---@field PACK_ID string|nil
 ---@field MODULE_ID string|nil
 ---@field BuildStorage fun(): StorageSchema[]|nil
----@field RegisterHooks fun()|nil
----@field DrawTab fun(imgui: table, session: AuthorSession)|nil
----@field DrawQuickContent fun(imgui: table, session: AuthorSession)|nil
+---@field RegisterHooks fun(host: AuthorHost, store: ManagedStore)|nil
+---@field DrawTab fun(imgui: table, session: AuthorSession, host: AuthorHost)|nil
+---@field DrawQuickContent fun(imgui: table, session: AuthorSession, host: AuthorHost)|nil
 ---@field RegisterPublicApi fun()|nil
 SpeedrunTimerInternal = SpeedrunTimerInternal or {}
 ---@type SpeedrunTimerInternal
@@ -58,17 +58,22 @@ local function init()
     import("logic.lua")
     import("ui.lua")
 
-    local definition = lib.prepareDefinition(internal, {
-        id = MODULE_ID,
-        name = "Speedrun Timer",
-        tooltip = "Displays selected timer modes on screen during runs.",
-        affectsRunData = false,
-        modpack = PACK_ID,
-        storage = internal.BuildStorage(),
+    local host, store = lib.createModule({
+        owner = internal,
+        pluginGuid = PLUGIN_GUID,
+        config = config,
+        definition = {
+            id = MODULE_ID,
+            name = "Speedrun Timer",
+            tooltip = "Displays selected timer modes on screen during runs.",
+            modpack = PACK_ID,
+            storage = internal.BuildStorage(),
+        },
         onSettingsCommitted = internal.OnSettingsCommitted,
+        registerHooks = internal.RegisterHooks,
+        drawTab = internal.DrawTab,
+        drawQuickContent = internal.DrawQuickContent,
     })
-
-    local store, session = lib.createStore(config, definition)
     internal.store = store
     if internal.InitializeBatchState then
         internal.InitializeBatchState()
@@ -81,16 +86,7 @@ local function init()
         internal.RegisterPublicApi()
     end
 
-    lib.createModuleHost({
-        pluginGuid = PLUGIN_GUID,
-        definition = definition,
-        store = store,
-        session = session,
-        hookOwner = internal,
-        registerHooks = internal.RegisterHooks,
-        drawTab = internal.DrawTab,
-        drawQuickContent = internal.DrawQuickContent,
-    })
+    host.activate()
     internal.standaloneUi = lib.standaloneHost(PLUGIN_GUID)
 end
 

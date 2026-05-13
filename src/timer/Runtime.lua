@@ -452,7 +452,7 @@ local function HandleRunFinalized()
 end
 
 function internal.RegisterHooks()
-    lib.hooks.Wrap(internal, "StartNewRun", function(baseFunc, prevRun, args)
+    lib.hooks.Wrap("StartNewRun", function(baseFunc, prevRun, args)
         if not IsModuleEnabled() then return baseFunc(prevRun, args) end
         if activeTimer then
             ClearActiveTimer()
@@ -469,28 +469,28 @@ function internal.RegisterHooks()
         return run
     end)
 
-    lib.hooks.Wrap(internal, "RoomEntranceMaterialize", function(baseFunc, ...)
+    lib.hooks.Wrap("RoomEntranceMaterialize", function(baseFunc, ...)
         if not IsModuleEnabled() then return baseFunc(...) end
         local val = baseFunc(...)
         StartTimerDisplayLoop()
         return val
     end)
 
-    lib.hooks.Wrap(internal, "RoomEntranceDreamBiomeStart", function(baseFunc, ...)
+    lib.hooks.Wrap("RoomEntranceDreamBiomeStart", function(baseFunc, ...)
         if not IsModuleEnabled() then return baseFunc(...) end
         local val = baseFunc(...)
         StartTimerDisplayLoop()
         return val
     end)
 
-    lib.hooks.Wrap(internal, "RecordRunStats", function(baseFunc, ...)
+    lib.hooks.Wrap("RecordRunStats", function(baseFunc, ...)
         if not IsModuleEnabled() then return baseFunc(...) end
         local val = baseFunc(...)
         HandleRunFinalized()
         return val
     end)
 
-    lib.hooks.Wrap(internal, "AddTimerBlock", function(baseFunc, currRun, timerBlockName)
+    lib.hooks.Wrap("AddTimerBlock", function(baseFunc, currRun, timerBlockName)
         local val = baseFunc(currRun, timerBlockName)
         local shouldRecordLoad = IsModuleEnabled() and timerBlockName == "MapLoad"
         if shouldRecordLoad and activeTimer and activeTimer.Running then
@@ -502,7 +502,7 @@ function internal.RegisterHooks()
         return val
     end)
 
-    lib.hooks.Wrap(internal, "RemoveTimerBlock", function(baseFunc, currRun, timerBlockName)
+    lib.hooks.Wrap("RemoveTimerBlock", function(baseFunc, currRun, timerBlockName)
         local val = baseFunc(currRun, timerBlockName)
         local shouldRecordLoad = IsModuleEnabled() and timerBlockName == "MapLoad"
         if shouldRecordLoad and activeTimer and activeTimer.Running then
