@@ -10,10 +10,12 @@ function data.buildStorage()
         {
             type = "bool",
             alias = "ShowRTA",
+            default = false,
         },
         {
             type = "bool",
             alias = "ShowLrT",
+            default = false,
         },
         {
             type = "bool",
