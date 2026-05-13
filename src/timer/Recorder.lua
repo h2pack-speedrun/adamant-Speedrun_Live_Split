@@ -18,28 +18,20 @@ local function refreshDisplay()
     end
 end
 
-local function getRuntimeState()
+local function readUnstaged(alias)
     local store = internal.store
-    if store and store.getRuntimeState then
-        return store.getRuntimeState()
-    end
-    return nil
+    return store and store.read and store.read(alias) or nil
 end
 
-local function readRuntime(alias)
-    local runtime = getRuntimeState()
-    return runtime and runtime.read(alias) or nil
-end
-
-local function writeRuntime(alias, value)
-    local runtime = getRuntimeState()
-    if runtime then
-        runtime.write(alias, value)
+local function writeUnstaged(alias, value)
+    local store = internal.store
+    if store and store.writeUnstaged then
+        store.writeUnstaged(alias, value)
     end
 end
 
 local function persistRecordingReady()
-    writeRuntime("RecordingReady", recordingReady == true)
+    writeUnstaged("RecordingReady", recordingReady == true)
 end
 
 local function normalizeMode(mode)
@@ -191,7 +183,7 @@ function internal.OnRecordingRunFinalized(timer, run)
 end
 
 function internal.InitializeRecordingState()
-    recordingReady = readRuntime("RecordingReady") == true
+    recordingReady = readUnstaged("RecordingReady") == true
     currentMode = readRecordingMode()
 
     if currentMode == "multi" and isRecordingReady() then

@@ -124,17 +124,10 @@ SpeedrunTimerInternal.store = {
         if alias == "BatchTargetRuns" then
             return 2
         end
-        return nil
+        return runtimeValues[alias]
     end,
-    getRuntimeState = function()
-        return {
-            read = function(alias)
-                return runtimeValues[alias]
-            end,
-            write = function(alias, value)
-                runtimeValues[alias] = value
-            end,
-        }
+    writeUnstaged = function(alias, value)
+        runtimeValues[alias] = value
     end,
 }
 
@@ -328,7 +321,7 @@ SpeedrunTimerInternal.store.read = function(alias)
     if alias == "RecordingMode" then
         return "multi"
     end
-    return nil
+    return runtimeValues[alias]
 end
 SpeedrunTimerInternal.InitializeBatchState()
 SpeedrunTimerInternal.InitializeRecordingState()
