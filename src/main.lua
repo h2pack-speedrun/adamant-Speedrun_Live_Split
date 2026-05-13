@@ -47,7 +47,7 @@ local function init()
     local logic = import("logic.lua").bind()
     local ui = import("ui.lua").bind(logic)
 
-    local host, store = lib.createModule({
+    local host, store = lib.tryCreateModule({
         owner = moduleAnchor,
         pluginGuid = PLUGIN_GUID,
         config = config,
@@ -63,10 +63,17 @@ local function init()
         drawTab = ui.drawTab,
         drawQuickContent = ui.drawQuickContent,
     })
+    if not host then
+        return
+    end
 
     logic.initialize(host, store)
 
-    host.activate()
+    local ok = host.tryActivate()
+    if not ok then
+        return
+    end
+
     moduleAnchor.standaloneUi = lib.standaloneHost(PLUGIN_GUID)
 end
 
