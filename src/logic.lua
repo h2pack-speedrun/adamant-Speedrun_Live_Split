@@ -53,6 +53,12 @@ function module.registerHooks(host, store)
     timer.RegisterHooks(host, store)
 end
 
+function module.registerOverlays(overlays, host, store)
+    timer.host = host
+    timer.store = store
+    timer.RegisterOverlays(overlays, host, store)
+end
+
 function module.onSettingsCommitted(host, store, commit)
     timer.host = host
     timer.store = store

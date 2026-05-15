@@ -89,7 +89,7 @@ function timerApi.FormatTimestamp(timestamp)
 end
 
 local activeTimer = nil
-local timerOverlays = {}
+local overlayContext = nil
 local runFinalized = false
 local showCompletedRun = false
 local displaySettings = {
@@ -226,73 +226,43 @@ local function GetDisplayTime(mode)
     return timerSnapshot.formatted[mode]
 end
 
-local function EnsureTimerOverlay(timerName, mode, orderOffset, getTime)
-    if timerOverlays[timerName] then
-        return timerOverlays[timerName]
-    end
-
-    local handle = lib.overlays.registerStackedRow({
-        id = "speedrun.timer." .. timerName,
-        componentName = "SpeedrunTimer_" .. timerName,
-        region = OVERLAY_REGION,
-        order = TIMER_OVERLAY_ORDER + orderOffset,
-        columnGap = 20,
-        columns = {
-            {
-                key = "label",
-                minWidth = 40,
-                justify = "Left",
-                text = timerName .. ":",
-                textArgs = {
-                    Font = "P22UndergroundSCMedium",
-                },
-            },
-            {
-                key = "time",
-                minWidth = 80,
-                justify = "Left",
-                text = getTime,
-                textArgs = {
-                    Font = "NumericP22UndergroundSCMedium",
-                },
-            },
-        },
-        visible = function()
-            return IsTimerModeOverlayVisible(mode)
-        end,
-    })
-    timerOverlays[timerName] = handle
-    return handle
+local function buildTimerLine(label, mode)
+    return {
+        label = label .. ":",
+        time = GetDisplayTime(mode),
+    }
 end
 
-local function EnsureTimerOverlays()
-    EnsureTimerOverlay("IGT", "igt", 0, function()
-        return GetDisplayTime("igt")
-    end)
-    EnsureTimerOverlay("RTA", "rta", 1, function()
-        return GetDisplayTime("rta")
-    end)
-    EnsureTimerOverlay("LrT", "lrt", 2, function()
-        return GetDisplayTime("lrt")
-    end)
+local function projectTimerOverlay(ctx, opts)
+    ctx = ctx or overlayContext
+    if not ctx then
+        return
+    end
+
+    overlayContext = ctx
+    opts = opts or {}
+    if opts.syncSettings == true then
+        SyncDisplaySettings()
+    end
+
+    ctx.setLine("summary.igt", buildTimerLine("IGT", "igt"))
+    ctx.setLine("summary.rta", buildTimerLine("RTA", "rta"))
+    ctx.setLine("summary.lrt", buildTimerLine("LrT", "lrt"))
+
+    if timerApi.BuildBatchOverlayRows then
+        ctx.setTable("batch", timerApi.BuildBatchOverlayRows())
+    end
+    if timerApi.BuildSplitOverlayRows then
+        ctx.setTable("splits", timerApi.BuildSplitOverlayRows(activeTimer, nil, opts.liveOnly == true))
+    end
+
+    ctx.refreshRegion(OVERLAY_REGION)
 end
 
 local function RefreshTimerStructure()
-    SyncDisplaySettings()
-    EnsureTimerOverlays()
-    if timerApi.UpdateBatchDisplayRows then
-        timerApi.UpdateBatchDisplayRows()
-    end
-    if timerApi.UpdateSplitDisplayRows then
-        timerApi.UpdateSplitDisplayRows(activeTimer)
-    end
-    if timerApi.EnsureBatchOverlays then
-        timerApi.EnsureBatchOverlays()
-    end
-    if timerApi.EnsureSplitOverlays then
-        timerApi.EnsureSplitOverlays()
-    end
-    lib.overlays.refreshStackedText(OVERLAY_REGION)
+    projectTimerOverlay(nil, {
+        syncSettings = true,
+    })
 end
 
 if timerApi.ConfigureBatchOverlays then
@@ -336,29 +306,83 @@ if timerApi.ConfigureRecorder then
 end
 
 local function RefreshTimerText()
-    for _, handle in pairs(timerOverlays) do
-        if handle.refreshText then
-            handle.refreshText()
-        else
-            handle.refresh()
-        end
-    end
-    if timerApi.RefreshSplitText then
-        timerApi.RefreshSplitText(activeTimer)
-    end
+    projectTimerOverlay(nil, {
+        liveOnly = true,
+    })
 end
 
 local function CleanupDisplay()
     RefreshTimerStructure()
 end
 
-local updateThreadActive = false
 local StopAndCleanup = nil
 
 local function HasActiveDisplayLoop()
     local hasRunningTimer = activeTimer and activeTimer.Running
     local hasActiveBatch = timerApi.IsBatchActive and timerApi.IsBatchActive()
     return hasRunningTimer or hasActiveBatch
+end
+
+local function updateTimerTick()
+    if not IsModuleEnabled() then
+        StopAndCleanup()
+        return
+    end
+
+    if activeTimer and activeTimer.Running then
+        activeTimer:update()
+        if timerApi.RecordCompletedBiomeSplits then
+            timerApi.RecordCompletedBiomeSplits(activeTimer)
+        end
+    end
+    if timerApi.UpdateBatchTimer then
+        timerApi.UpdateBatchTimer()
+    end
+    UpdateTimerSnapshot()
+end
+
+local function createTimerLine(overlays, name, label, mode, orderOffset)
+    overlays.createLine(name, {
+        componentName = "SpeedrunTimer_" .. label,
+        region = OVERLAY_REGION,
+        order = TIMER_OVERLAY_ORDER + orderOffset,
+        columnGap = 20,
+        columns = timerApi.TimerOverlay.buildSummaryColumns(),
+        visible = function()
+            return IsTimerModeOverlayVisible(mode)
+        end,
+    })
+end
+
+function timerApi.RegisterOverlays(overlays)
+    createTimerLine(overlays, "summary.igt", "IGT", "igt", 0)
+    createTimerLine(overlays, "summary.rta", "RTA", "rta", 1)
+    createTimerLine(overlays, "summary.lrt", "LrT", "lrt", 2)
+
+    if timerApi.RegisterBatchOverlay then
+        timerApi.RegisterBatchOverlay(overlays)
+    end
+    if timerApi.RegisterSplitOverlay then
+        timerApi.RegisterSplitOverlay(overlays)
+    end
+
+    overlays.onCommit(function(ctx)
+        projectTimerOverlay(ctx, {
+            syncSettings = true,
+        })
+        if HasActiveDisplayLoop() then
+            updateTimerTick()
+            RefreshTimerText()
+        end
+    end)
+
+    overlays.onInterval("timer", TIMER_REFRESH_INTERVAL, function(ctx)
+        overlayContext = ctx
+        updateTimerTick()
+        RefreshTimerText()
+    end, {
+        when = HasActiveDisplayLoop,
+    })
 end
 
 local function ClearActiveTimer()
@@ -382,32 +406,8 @@ local function StartTimerDisplayLoop()
         RefreshTimerStructure()
     end
 
-    if HasActiveDisplayLoop() and not updateThreadActive then
-        updateThreadActive = true
-        thread(function()
-            while HasActiveDisplayLoop() do
-                if not IsModuleEnabled() then
-                    StopAndCleanup()
-                    return
-                end
-
-                if activeTimer and activeTimer.Running then
-                    activeTimer:update()
-                    if timerApi.RecordCompletedBiomeSplits then
-                        timerApi.RecordCompletedBiomeSplits(activeTimer)
-                    end
-                end
-                if timerApi.UpdateBatchTimer then
-                    timerApi.UpdateBatchTimer()
-                end
-                UpdateTimerSnapshot()
-
-                RefreshTimerText()
-
-                wait(TIMER_REFRESH_INTERVAL, "adamant_SpeedrunTimer", true)
-            end
-            updateThreadActive = false
-        end)
+    if HasActiveDisplayLoop() then
+        RefreshTimerText()
     end
 end
 
@@ -416,7 +416,6 @@ StopAndCleanup = function()
     if timerApi.StopRecording then
         timerApi.StopRecording()
     end
-    updateThreadActive = false
     CleanupDisplay()
 end
 

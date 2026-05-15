@@ -29,8 +29,6 @@ local splitState = {
 }
 
 local overlayConfig = nil
-local splitOverlays = {}
-local liveSplitKeys = {}
 local EMPTY_ROUTE = {}
 local EMPTY_SNAPSHOT = {}
 local splitRows = {
@@ -355,28 +353,12 @@ local function updateTotalRow(timer, snapshot)
     return setFormattedSnapshotRow(splitRows.total, "Total", snapshot, timer)
 end
 
-local function markChangedRow(key, row, previousLabel, previousIgt, previousRta, previousLrt)
-    if row.label ~= "" and (
-        row.igt ~= previousIgt
-        or row.rta ~= previousRta
-        or row.lrt ~= previousLrt
-        or previousLabel ~= row.label) then
-
-        liveSplitKeys[key] = true
-    end
-end
-
 local function updateTrackedSplitRow(index, timer, run, route, snapshot)
     local row = splitRows.biomes[index]
     if not row then
         return
     end
-    local previousLabel = row.label
-    local previousIgt = row.igt
-    local previousRta = row.rta
-    local previousLrt = row.lrt
     updateSplitDisplayRow(row, index, timer, run, route, snapshot)
-    markChangedRow("biome" .. index, row, previousLabel, previousIgt, previousRta, previousLrt)
 end
 
 function timerApi.UpdateSplitDisplayRows(timer, run)
@@ -384,7 +366,6 @@ function timerApi.UpdateSplitDisplayRows(timer, run)
     local route = getRoute(run)
     local snapshot = getSnapshot()
 
-    liveSplitKeys.total = true
     for index = 1, 4 do
         updateTrackedSplitRow(index, timer, run, route, snapshot)
     end
@@ -402,7 +383,6 @@ function timerApi.UpdateLiveSplitDisplayRows(timer, run)
     end
 
     local snapshot = getSnapshot()
-    liveSplitKeys.total = true
     if currentIndex then
         updateTrackedSplitRow(currentIndex, timer, run, route, snapshot)
     end
@@ -441,60 +421,69 @@ local function modeVisible(mode)
     return true
 end
 
-local function registerSplitRow(key, orderOffset, row)
-    return timerApi.TimerOverlay.registerTableRow(splitOverlays, key, {
-        idPrefix = "speedrun.timer.split.",
-        componentPrefix = "SpeedrunTimer_Split_",
-        order = overlayConfig.order + orderOffset,
-        row = row,
-        modeVisible = modeVisible,
-        visible = function()
-            return splitVisible() and row.label ~= nil and row.label ~= ""
-        end,
-    })
-end
-
 function timerApi.ConfigureSplitOverlays(config)
     overlayConfig = config
 end
 
-function timerApi.EnsureSplitOverlays()
+function timerApi.RegisterSplitOverlay(overlays)
     if not overlayConfig then
         return
     end
 
-    registerSplitRow("header", 0, splitRows.header)
+    overlays.createTable("splits", {
+        componentName = "SpeedrunTimer_Split",
+        region = timerApi.TimerOverlay.region,
+        order = overlayConfig.order,
+        maxRows = 6,
+        columnGap = 20,
+        columns = timerApi.TimerOverlay.buildTimerTableColumns(modeVisible),
+        visible = splitVisible,
+    })
+end
 
-    for index = 1, 4 do
-        registerSplitRow("biome" .. index, index, splitRows.biomes[index])
+local function appendRow(rows, key, row)
+    if row.label == nil or row.label == "" then
+        return
+    end
+    rows[#rows + 1] = {
+        key = key,
+        label = row.label,
+        igt = row.igt,
+        rta = row.rta,
+        lrt = row.lrt,
+    }
+end
+
+function timerApi.BuildSplitOverlayRows(timer, run, liveOnly)
+    local rows = {}
+    if not splitVisible() then
+        return rows
     end
 
-    registerSplitRow("total", 5, splitRows.total)
+    if liveOnly then
+        timerApi.UpdateLiveSplitDisplayRows(timer, run)
+    else
+        timerApi.UpdateSplitDisplayRows(timer, run)
+    end
+
+    appendRow(rows, "header", splitRows.header)
+    for index = 1, 4 do
+        appendRow(rows, "biome" .. index, splitRows.biomes[index])
+    end
+    appendRow(rows, "total", splitRows.total)
+    return rows
 end
 
 function timerApi.RefreshSplitDisplay()
-    if overlayConfig then
-        timerApi.UpdateSplitDisplayRows(overlayConfig.getTimer())
+    if timerApi.RefreshTimerDisplay then
+        timerApi.RefreshTimerDisplay()
     end
-    timerApi.EnsureSplitOverlays()
-    lib.overlays.refreshStackedText(timerApi.TimerOverlay.region)
 end
 
-function timerApi.RefreshSplitText(timer)
-    local needsStructureRefresh = timerApi.UpdateLiveSplitDisplayRows(timer)
-    if needsStructureRefresh then
-        timerApi.EnsureSplitOverlays()
-        lib.overlays.refreshStackedText(timerApi.TimerOverlay.region)
-        liveSplitKeys = {}
-        return
+function timerApi.RefreshSplitText()
+    if timerApi.RefreshTimerDisplay then
+        timerApi.RefreshTimerDisplay()
     end
-    for key in pairs(liveSplitKeys) do
-        local handle = splitOverlays[key]
-        if handle and handle.refreshText then
-            handle.refreshText()
-        end
-    end
-    liveSplitKeys = {}
 end
 
 return timerApi

@@ -4,7 +4,6 @@ local MAX_BATCH_RUNS = 10
 
 local overlayConfig = nil
 local modeConfig = nil
-local batchOverlays = {}
 local batchRows = {
     runs = {},
     current = { label = "", igt = "", rta = "", lrt = "" },
@@ -390,19 +389,6 @@ local function modeVisible(mode)
     return true
 end
 
-local function registerBatchRow(key, orderOffset, row)
-    return timerApi.TimerOverlay.registerTableRow(batchOverlays, key, {
-        idPrefix = "speedrun.timer.batch.",
-        componentPrefix = "SpeedrunTimer_Batch_",
-        order = overlayConfig.order + orderOffset,
-        row = row,
-        modeVisible = modeVisible,
-        visible = function()
-            return batchRowVisible(row)
-        end,
-    })
-end
-
 function timerApi.ConfigureBatchOverlays(config)
     overlayConfig = config
 end
@@ -411,14 +397,54 @@ function timerApi.ConfigureBatchMode(config)
     modeConfig = config
 end
 
-function timerApi.EnsureBatchOverlays()
+function timerApi.RegisterBatchOverlay(overlays)
     if not overlayConfig then
         return
     end
-    for index = 1, MAX_BATCH_RUNS do
-        registerBatchRow("run" .. index, index, batchRows.runs[index])
+
+    overlays.createTable("batch", {
+        componentName = "SpeedrunTimer_Batch",
+        region = timerApi.TimerOverlay.region,
+        order = overlayConfig.order,
+        maxRows = MAX_BATCH_RUNS + 1,
+        columnGap = 20,
+        columns = timerApi.TimerOverlay.buildTimerTableColumns(modeVisible),
+        visible = function()
+            return timerApi.IsBatchVisible()
+        end,
+    })
+end
+
+function timerApi.BuildBatchOverlayRows()
+    local rows = {}
+    timerApi.UpdateBatchDisplayRows()
+    if not timerApi.IsBatchVisible() then
+        return rows
     end
-    registerBatchRow("current", MAX_BATCH_RUNS + 1, batchRows.current)
+
+    for index = 1, MAX_BATCH_RUNS do
+        local row = batchRows.runs[index]
+        if batchRowVisible(row) then
+            rows[#rows + 1] = {
+                key = "run" .. index,
+                label = row.label,
+                igt = row.igt,
+                rta = row.rta,
+                lrt = row.lrt,
+            }
+        end
+    end
+
+    if batchRowVisible(batchRows.current) then
+        rows[#rows + 1] = {
+            key = "current",
+            label = batchRows.current.label,
+            igt = batchRows.current.igt,
+            rta = batchRows.current.rta,
+            lrt = batchRows.current.lrt,
+        }
+    end
+    return rows
 end
 
 return timerApi

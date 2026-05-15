@@ -86,21 +86,6 @@ lib = {
         order = {
             module = 1000,
         },
-        registerStackedText = function()
-            return {
-                setText = function() end,
-                setVisible = function() end,
-                refresh = function() end,
-            }
-        end,
-        registerStackedRow = function()
-            return {
-                setColumnText = function() return true end,
-                setVisible = function() end,
-                refresh = function() end,
-            }
-        end,
-        refreshStackedText = function() end,
     },
     isModuleEnabled = function()
         return true
@@ -136,6 +121,50 @@ timerModule.store = {
     end,
 }
 
+local retained = {
+    lines = {},
+    tables = {},
+    intervals = {},
+}
+timerModule.RegisterOverlays({
+    createLine = function(name, spec)
+        retained.lines[name] = spec
+    end,
+    createTable = function(name, spec)
+        retained.tables[name] = spec
+    end,
+    onCommit = function(callback)
+        retained.commit = callback
+    end,
+    onInterval = function(name, seconds, callback, opts)
+        retained.intervals[name] = {
+            seconds = seconds,
+            callback = callback,
+            opts = opts,
+        }
+    end,
+})
+
+local projection = {
+    lines = {},
+    tables = {},
+    refreshCount = 0,
+}
+local projectionContext = {
+    setLine = function(name, values)
+        projection.lines[name] = values
+        return true
+    end,
+    setTable = function(name, rows)
+        projection.tables[name] = rows
+        return true
+    end,
+    refreshRegion = function(region)
+        projection.region = region
+        projection.refreshCount = projection.refreshCount + 1
+    end,
+}
+
 local function assertEqual(actual, expected)
     if actual ~= expected then
         error(string.format("expected %q, got %q", expected, actual), 2)
@@ -147,6 +176,17 @@ local function assertBatchStatusText(expected)
 end
 
 local format = timerModule.FormatTimestamp
+
+assert(retained.lines["summary.igt"] ~= nil, "missing IGT overlay line")
+assert(retained.lines["summary.rta"] ~= nil, "missing RTA overlay line")
+assert(retained.lines["summary.lrt"] ~= nil, "missing LrT overlay line")
+assert(retained.tables.batch ~= nil, "missing batch overlay table")
+assert(retained.tables.splits ~= nil, "missing split overlay table")
+assert(retained.intervals.timer ~= nil, "missing timer interval overlay event")
+retained.commit(projectionContext, {})
+assertEqual(projection.lines["summary.igt"].label, "IGT:")
+assertEqual(projection.lines["summary.igt"].time, "00:00.00")
+assertEqual(projection.region, "middleRightStack")
 
 assertEqual(format(nil), "00:00.00")
 assertEqual(format(0), "00:00.00")

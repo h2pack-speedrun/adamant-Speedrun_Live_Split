@@ -60,6 +60,7 @@ local function init()
         },
         onSettingsCommitted = logic.onSettingsCommitted,
         registerHooks = logic.registerHooks,
+        registerOverlays = logic.registerOverlays,
         drawTab = ui.drawTab,
         drawQuickContent = ui.drawQuickContent,
     })
