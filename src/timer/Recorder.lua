@@ -162,6 +162,27 @@ function timerApi.StopRecording()
     refreshDisplay()
 end
 
+function timerApi.ApplyRecordingAction(action)
+    if type(action) ~= "table" then
+        return false
+    end
+
+    local kind = action.kind
+    if kind == "start" then
+        timerApi.StartRecording(readTargetRuns())
+        return true
+    end
+    if kind == "clear" then
+        timerApi.ClearRecording(readTargetRuns())
+        return true
+    end
+    if kind == "stop" then
+        timerApi.StopRecording()
+        return true
+    end
+    return false
+end
+
 function timerApi.OnRecordingRunStarted(run)
     if isRecordingReady() and timerApi.StartSplitRun then
         timerApi.StartSplitRun(run)

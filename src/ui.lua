@@ -87,26 +87,22 @@ local function drawRecordingControls(ui, session, recordingMode)
         })
     end
 
-    local targetRuns = session.read("BatchTargetRuns") or 3
-    lib.widgets.button(ui, "Start Recording", {
+    lib.widgets.button(ui, session, "Start Recording", {
         id = "recording_start",
-        onClick = function()
-            logic.startRecording(targetRuns)
-        end,
+        action = "recording",
+        value = { kind = "start" },
     })
     ui.SameLine()
-    lib.widgets.button(ui, "Clear Results", {
+    lib.widgets.button(ui, session, "Clear Results", {
         id = "recording_clear",
-        onClick = function()
-            logic.clearRecording(targetRuns)
-        end,
+        action = "recording",
+        value = { kind = "clear" },
     })
     ui.SameLine()
-    lib.widgets.button(ui, "Stop Recording", {
+    lib.widgets.button(ui, session, "Stop Recording", {
         id = "recording_stop",
-        onClick = function()
-            logic.stopRecording()
-        end,
+        action = "recording",
+        value = { kind = "stop" },
     })
     lib.widgets.text(ui, "Recording stays ready until stopped or the module is disabled.", {
         color = MUTED_TEXT_COLOR,

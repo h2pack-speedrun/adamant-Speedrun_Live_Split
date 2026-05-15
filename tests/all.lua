@@ -364,7 +364,10 @@ lib.widgets = {
     checkbox = function() return false end,
     radio = function() return false end,
     stepper = function() return false end,
-    button = function() return false end,
+    button = function(_, session, _, opts)
+        session.stageAction(opts.action, opts.value)
+        return true
+    end,
 }
 local uiModule = dofile("src/ui.lua").bind({
     getRecordingStatus = function()
@@ -389,6 +392,7 @@ local uiSessionValues = {
     ShowSplitTable = true,
     RecordingMode = "single",
 }
+local uiSessionActions = {}
 uiModule.drawTab({
     SameLine = function() end,
     Spacing = function() end,
@@ -399,7 +403,11 @@ uiModule.drawTab({
     write = function(alias, value)
         uiSessionValues[alias] = value
     end,
+    stageAction = function(action, value)
+        uiSessionActions[action] = value
+    end,
 })
 assertEqual(uiSessionValues.ShowIGT, true)
+assertEqual(uiSessionActions.recording.kind, "stop")
 
 print("Timer tests passed")

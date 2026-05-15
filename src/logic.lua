@@ -53,10 +53,10 @@ function module.registerHooks(host, store)
     timer.RegisterHooks(host, store)
 end
 
-function module.onSettingsCommitted(host, store)
+function module.onSettingsCommitted(host, store, commit)
     timer.host = host
     timer.store = store
-    timer.OnSettingsCommitted(host, store)
+    timer.OnSettingsCommitted(host, store, commit)
 end
 
 function module.getRecordingStatus()

@@ -423,10 +423,14 @@ end
 timerApi.RefreshTimerDisplay = RefreshTimerStructure
 timerApi.EnsureTimerDisplayLoop = StartTimerDisplayLoop
 
-function timerApi.OnSettingsCommitted()
+function timerApi.OnSettingsCommitted(_, _, commit)
     if not IsModuleEnabled() then
         StopAndCleanup()
         return
+    end
+    local recordingAction = commit and commit.readAction and commit.readAction("recording") or nil
+    if recordingAction and timerApi.ApplyRecordingAction then
+        timerApi.ApplyRecordingAction(recordingAction)
     end
     RefreshTimerStructure()
     StartTimerDisplayLoop()
