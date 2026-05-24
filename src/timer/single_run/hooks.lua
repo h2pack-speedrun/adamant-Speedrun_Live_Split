@@ -3,27 +3,15 @@ local singleRun = ...
 local hooksAdapter = {}
 
 local function emit(callbacks, name, ...)
-    local callback = callbacks and callbacks[name] or nil
-    if callback == nil then
-        return nil
-    end
-    return callback(...)
+    return callbacks[name](...)
 end
 
 local function isEnabled(callbacks)
-    local callback = callbacks and callbacks.isEnabled or nil
-    if callback == nil then
-        return true
-    end
-    return callback() == true
+    return callbacks.isEnabled() == true
 end
 
 local function getCurrentRun(callbacks)
-    local callback = callbacks and callbacks.getCurrentRun or nil
-    if callback == nil then
-        return nil
-    end
-    return callback()
+    return callbacks.getCurrentRun()
 end
 
 local function emitDisplayStarted(callbacks)

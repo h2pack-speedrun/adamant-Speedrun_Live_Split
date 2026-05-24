@@ -16,6 +16,67 @@ local function currentRun()
     return CurrentRun
 end
 
+local function newPersistentCache(backing)
+    backing = backing or {}
+    return {
+        read = function(alias, fallback)
+            local value = backing[alias]
+            if value == nil then
+                return fallback
+            end
+            return value
+        end,
+        write = function(alias, value)
+            backing[alias] = value
+            return true
+        end,
+        clear = function(alias)
+            local hadValue = backing[alias] ~= nil
+            backing[alias] = nil
+            return hadValue
+        end,
+        has = function(alias)
+            return backing[alias] ~= nil
+        end,
+        snapshotRef = function(alias, fallback)
+            local snapshot = backing[alias]
+            if snapshot == nil then
+                snapshot = fallback
+            end
+            local ref = {}
+            ref.get = function()
+                return snapshot
+            end
+            ref.set = function(selfOrValue, maybeValue)
+                local value = maybeValue
+                if value == nil and selfOrValue ~= ref then
+                    value = selfOrValue
+                end
+                backing[alias] = value
+                snapshot = value
+                return true
+            end
+            ref.clear = function()
+                local hadValue = backing[alias] ~= nil
+                backing[alias] = nil
+                snapshot = fallback
+                return hadValue
+            end
+            ref.has = function()
+                return backing[alias] ~= nil
+            end
+            ref.refresh = function()
+                snapshot = backing[alias]
+                if snapshot == nil then
+                    snapshot = fallback
+                end
+                return snapshot
+            end
+            return ref
+        end,
+    }
+end
+
 local function withImport(callback)
     local previousImport = _G.import
     _G.import = function(path, _, deps)
@@ -156,11 +217,14 @@ local overlaySingleRun = assert(loadfile("src/timer/single_run/single_run.lua"))
 local overlaySingleRunAdapter = assert(loadfile("src/timer/single_run/overlay.lua"))({
     singleRun = overlaySingleRun,
     overlay = overlay,
-    isLiveRowsEnabled = function()
-        return true
-    end,
     isModeVisible = function(mode)
         return mode ~= "rta"
+    end,
+    isTimerDisplayVisible = function()
+        return overlaySingleRun.hasCurrentRunDisplay()
+    end,
+    getDisplayTime = function(mode)
+        return overlaySingleRun.getSnapshot().formatted[mode]
     end,
 })
 local singleRunOverlayDeclarations = {}
@@ -389,6 +453,9 @@ setTime(0)
 local overlayBatch = assert(loadfile("src/timer/batch/batch.lua"))({
     core = core,
     formatTimestamp = core.formatTimestamp,
+    isRunSuccess = function(run)
+        return run and run.Cleared == true
+    end,
 })
 local batchOverlayAdapter = assert(loadfile("src/timer/batch/overlay.lua"))({
     batch = overlayBatch,
@@ -434,8 +501,25 @@ assertEqual(projectedBatchTables.batch[1].key, "run1")
 assertEqual(projectedBatchTables.batch[1].label, "Run 1/2")
 assertEqual(projectedBatchTables.batch[1].igt, "00:08.00")
 setTime(0)
+local timerInitStoreValues = {
+    ShowIGT = false,
+    ShowRawTimers = false,
+}
 local timerInit = withImport(function()
     return assert(loadfile("src/timer/00_init.lua"))({
+        host = {
+            isEnabled = function()
+                return true
+            end,
+            cache = {
+                persistent = newPersistentCache(),
+            },
+        },
+        store = {
+            read = function(alias)
+                return timerInitStoreValues[alias]
+            end,
+        },
         game = {
             getTime = function()
                 return fakeTime
@@ -451,6 +535,8 @@ assert(timerInit.splits.overlay ~= nil, "expected timer splits overlay")
 assert(timerInit.batch.overlay ~= nil, "expected timer batch overlay")
 assert(timerInit.recording ~= nil, "expected timer recording")
 assert(timerInit.runLoop ~= nil, "expected timer run loop")
+assertEqual(timerInit.display.services.isModeVisible("igt"), false)
+assertEqual(timerInit.display.services.isRawTimerRowsEnabled(), false)
 
 local recordingSettings = {
     RecordingMode = "single",
@@ -480,18 +566,7 @@ local recording = assert(loadfile("src/timer/recording/recording.lua"))({
     refreshDisplay = function()
         recordingRefreshCount = recordingRefreshCount + 1
     end,
-    persistentCache = {
-        read = function(alias, fallback)
-            local value = recordingCache[alias]
-            if value == nil then
-                return fallback
-            end
-            return value
-        end,
-        write = function(alias, value)
-            recordingCache[alias] = value
-        end,
-    },
+    persistentCache = newPersistentCache(recordingCache),
 })
 recording.initialize()
 assertEqual(recording.status().kind, "idle")
@@ -569,6 +644,8 @@ bridgeRecording = assert(loadfile("src/timer/recording/recording.lua"))({
     readSetting = function(alias)
         return bridgeSettings[alias]
     end,
+    refreshDisplay = function() end,
+    persistentCache = newPersistentCache(),
 })
 local runLoop = assert(loadfile("src/timer/run_loop/run_loop.lua"))({
     singleRun = bridgeSingleRun,
@@ -665,9 +742,13 @@ assertEqual(format(3599.99), "59:59.99")
 assertEqual(format(3600), "01:00:00.00")
 assertEqual(format(3661.23), "01:01:01.23")
 
+local uiStatus = {
+    kind = "idle",
+    text = "Not recording",
+}
 local uiModule = dofile("src/ui.lua").bind({
     getRecordingStatus = function()
-        return recording.status()
+        return uiStatus
     end,
 })
 
@@ -675,11 +756,12 @@ local uiSessionValues = {
     ShowIGT = false,
     ShowRTA = false,
     ShowLrT = false,
-    ShowLiveTimers = true,
-    ShowSplitTable = true,
+    ShowRawTimers = false,
+    ShowRecordingTable = true,
     RecordingMode = "single",
 }
 local uiSessionActions = {}
+local uiButtons = {}
 local uiDraw = {
     imgui = {
         SameLine = function() end,
@@ -691,7 +773,8 @@ local uiDraw = {
         checkbox = function() return false end,
         radio = function() return false end,
         stepper = function() return false end,
-        button = function(_, opts)
+        button = function(label, opts)
+            uiButtons[#uiButtons + 1] = label
             opts.action:stage(opts.value)
             return true
         end,
@@ -724,7 +807,34 @@ uiModule.drawTab({
     widgets = uiDraw.widgets,
 }, drawState, uiActions)
 assertEqual(uiSessionValues.ShowIGT, true)
-assertEqual(uiSessionActions.recording.kind, "stop")
+assertEqual(uiSessionActions.recording.kind, "start")
+assertEqual(uiButtons[1], "Start")
+assertEqual(uiButtons[2], nil)
+
+uiSessionActions = {}
+uiButtons = {}
+uiModule.drawQuickContent({
+    imgui = uiDraw.imgui,
+    widgets = uiDraw.widgets,
+}, drawState, uiActions)
+assertEqual(uiSessionActions.recording.kind, "start")
+assertEqual(uiButtons[1], "Start")
+assertEqual(uiButtons[2], nil)
+
+uiStatus = {
+    kind = "active",
+    text = "Recording current run",
+}
+uiSessionActions = {}
+uiButtons = {}
+uiModule.drawQuickContent({
+    imgui = uiDraw.imgui,
+    widgets = uiDraw.widgets,
+}, drawState, uiActions)
+assertEqual(uiSessionActions.recording.kind, "clear")
+assertEqual(uiButtons[1], "Stop")
+assertEqual(uiButtons[2], "Clear")
+assertEqual(uiButtons[3], nil)
 
 local harness = dofile("../../Setup/tests/module_entrypoint_harness.lua")
 local boot = harness.bootModule({
@@ -741,6 +851,8 @@ local boot = harness.bootModule({
     end,
 })
 assert(boot.host and boot.host.setEnabled(true))
+boot.host.drawTab()
+boot.host.drawQuickContent()
 
 local consumerHost = boot.lib.createModule({
     pluginGuid = "test-SpeedrunTimerConsumer",

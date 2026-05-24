@@ -35,13 +35,13 @@ local STATUS_TEXT_COLORS = {
 local MUTED_TEXT_OPTS = { color = MUTED_TEXT_COLOR }
 local WARNING_TEXT_OPTS = { color = WARNING_TEXT_COLOR }
 local TIMER_MODE_OPTS = {}
-local SHOW_LIVE_TIMERS_OPTS = {
-    label = "Show live timer rows",
-    tooltip = "Show the compact IGT/RTA/LrT rows above the split table.",
+local SHOW_RAW_TIMERS_OPTS = {
+    label = "Show raw timer rows",
+    tooltip = "Show compact IGT/RTA/LrT rows while recording is active.",
 }
-local SHOW_SPLIT_TABLE_OPTS = {
-    label = "Show split table",
-    tooltip = "Show biome split rows for single-run or multi-run tracking.",
+local SHOW_RECORDING_TABLE_OPTS = {
+    label = "Show recording table",
+    tooltip = "Show split or batch rows while recording.",
 }
 local RECORDING_MODE_OPTS = {
     values = RECORDING_MODE_VALUES,
@@ -57,6 +57,10 @@ local BATCH_TARGET_RUNS_OPTS = {
 }
 local START_RECORDING_OPTS = {
     id = "recording_start",
+    value = { kind = "start" },
+}
+local RESTART_RECORDING_OPTS = {
+    id = "recording_restart",
     value = { kind = "start" },
 }
 local CLEAR_RECORDING_OPTS = {
@@ -116,67 +120,90 @@ local function withAction(opts, action)
     return opts
 end
 
-local function drawRecordingControls(draw, state, actions, recordingMode)
+local function drawRecordingActions(draw, actions, statusKind)
     local imgui = draw.imgui
     local recordingAction = actions.get("recording")
+
+    if statusKind == "ready" or statusKind == "active" then
+        draw.widgets.button("Stop", withAction(STOP_RECORDING_OPTS, recordingAction))
+        imgui.SameLine()
+        draw.widgets.button("Clear", withAction(CLEAR_RECORDING_OPTS, recordingAction))
+        return
+    end
+
+    if statusKind == "recorded" or statusKind == "failed" then
+        draw.widgets.button("Start New", withAction(RESTART_RECORDING_OPTS, recordingAction))
+        imgui.SameLine()
+        draw.widgets.button("Clear", withAction(CLEAR_RECORDING_OPTS, recordingAction))
+        return
+    end
+
+    draw.widgets.button("Start", withAction(START_RECORDING_OPTS, recordingAction))
+end
+
+local function getRecordingStatus()
     local status = timer.getRecordingStatus()
     local statusText = status and status.text or "Not recording"
     local statusKind = status and status.kind or "idle"
-    draw.widgets.text("Status: " .. statusText, {
-        color = STATUS_TEXT_COLORS[statusKind] or MUTED_TEXT_COLOR,
-    })
+    return statusKind, statusText
+end
 
+local function drawRecordingControls(draw, state, actions, recordingMode, statusKind)
     if recordingMode == "multi" then
         draw.widgets.stepper(state.get("BatchTargetRuns"), BATCH_TARGET_RUNS_OPTS)
     end
 
-    draw.widgets.button("Start Recording", withAction(START_RECORDING_OPTS, recordingAction))
-    imgui.SameLine()
-    draw.widgets.button("Clear Results", withAction(CLEAR_RECORDING_OPTS, recordingAction))
-    imgui.SameLine()
-    draw.widgets.button("Stop Recording", withAction(STOP_RECORDING_OPTS, recordingAction))
-    draw.widgets.text("Recording stays ready until stopped or the module is disabled.", MUTED_TEXT_OPTS)
+    drawRecordingActions(draw, actions, statusKind)
+end
+
+local function drawRecordingSection(draw, state, actions, showRecordingTable, showRawTimers)
+    drawSection(draw, "Recording")
+    local statusKind, statusText = getRecordingStatus()
+    draw.widgets.text("Status: " .. statusText, {
+        color = STATUS_TEXT_COLORS[statusKind] or MUTED_TEXT_COLOR,
+    })
+    draw.widgets.radio(state.get("RecordingMode"), RECORDING_MODE_OPTS)
+
+    local recordingMode = readRecordingMode(state)
+    drawRecordingControls(draw, state, actions, recordingMode, statusKind)
+
+    if statusKind == "active" and not showRecordingTable and not showRawTimers then
+        draw.widgets.text(
+            "Recording is active, but no timer output is visible.",
+            WARNING_TEXT_OPTS)
+    elseif statusKind ~= "idle" and not showRecordingTable then
+        draw.widgets.text(
+            "Recording table is hidden, so recorded rows will not be visible.",
+            WARNING_TEXT_OPTS)
+    end
+end
+
+local function drawDisplaySection(draw, state, includeColumns)
+    drawSection(draw, "Display During Recording")
+    draw.widgets.checkbox(state.get("ShowRecordingTable"), SHOW_RECORDING_TABLE_OPTS)
+    draw.widgets.checkbox(state.get("ShowRawTimers"), SHOW_RAW_TIMERS_OPTS)
+
+    if includeColumns then
+        draw.widgets.text("Timer columns", MUTED_TEXT_OPTS)
+        for _, option in ipairs(TIMER_MODE_OPTIONS) do
+            draw.widgets.checkbox(state.get(option.alias), TIMER_MODE_OPTS[option.alias])
+        end
+        enforceVisibleTimerMode(state)
+    end
 end
 
 function module.drawTab(draw, state, actions)
-    drawSection(draw, "Timer Columns", "Choose which timer values are shown in timer rows and split tables.")
-    draw.widgets.text("At least one timer column is always shown.", MUTED_TEXT_OPTS)
-
-    for _, option in ipairs(TIMER_MODE_OPTIONS) do
-        draw.widgets.checkbox(state.get(option.alias), TIMER_MODE_OPTS[option.alias])
-    end
-    enforceVisibleTimerMode(state)
-
-    drawSection(draw, "Overlay Sections")
-    draw.widgets.checkbox(state.get("ShowLiveTimers"), SHOW_LIVE_TIMERS_OPTS)
-    draw.widgets.checkbox(state.get("ShowSplitTable"), SHOW_SPLIT_TABLE_OPTS)
-
-    local showLiveTimers = readBool(state, "ShowLiveTimers", true)
-    local showSplitTable = readBool(state, "ShowSplitTable", true)
-    if not showLiveTimers and not showSplitTable then
-        draw.widgets.text("No overlay sections selected.", WARNING_TEXT_OPTS)
-    end
-
-    if showSplitTable then
-        drawSection(draw, "Recording Mode")
-        draw.widgets.radio(state.get("RecordingMode"), RECORDING_MODE_OPTS)
-
-        local recordingMode = readRecordingMode(state)
-        drawSection(draw, "Recording")
-        drawRecordingControls(draw, state, actions, recordingMode)
-        local status = timer.getRecordingStatus()
-        if not status or status.kind == "idle" then
-            draw.widgets.text(
-                "Split table is enabled, but recording is not started. Press Start Recording to begin tracking runs.",
-                WARNING_TEXT_OPTS)
-        end
-    end
+    local showRecordingTable = readBool(state, "ShowRecordingTable", true)
+    local showRawTimers = readBool(state, "ShowRawTimers", false)
+    drawRecordingSection(draw, state, actions, showRecordingTable, showRawTimers)
+    drawDisplaySection(draw, state, true)
 end
 
-function module.drawQuickContent(draw, state)
-    draw.widgets.checkbox(state.get("ShowLiveTimers"), SHOW_LIVE_TIMERS_OPTS)
-    draw.widgets.checkbox(state.get("ShowSplitTable"), SHOW_SPLIT_TABLE_OPTS)
-
+function module.drawQuickContent(draw, state, actions)
+    local showRecordingTable = readBool(state, "ShowRecordingTable", true)
+    local showRawTimers = readBool(state, "ShowRawTimers", false)
+    drawRecordingSection(draw, state, actions, showRecordingTable, showRawTimers)
+    drawDisplaySection(draw, state, false)
 end
 
 function module.bind(timerApi)

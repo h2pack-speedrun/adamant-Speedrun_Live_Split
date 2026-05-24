@@ -1,9 +1,7 @@
 local deps = ... or {}
 local core = deps.core
 local formatTimestamp = deps.formatTimestamp
-local isRunSuccess = deps.isRunSuccess or function(run)
-    return run and run.Cleared == true
-end
+local isRunSuccess = deps.isRunSuccess
 
 local MAX_BATCH_RUNS = 10
 local batch = {}

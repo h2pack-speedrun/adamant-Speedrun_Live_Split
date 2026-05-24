@@ -1,15 +1,13 @@
 local deps = ... or {}
 local splits = deps.splits
 local batch = deps.batch
-local readSetting = deps.readSetting or function()
-    return nil
-end
-local refreshDisplay = deps.refreshDisplay or function() end
+local readSetting = deps.readSetting
+local refreshDisplay = deps.refreshDisplay
 local persistentCache = deps.persistentCache
 
 local recording = {}
 local currentMode = nil
-local recordingReady = false
+local recordingReadyRef = persistentCache.snapshotRef("RecordingReady", false)
 
 local function normalizeMode(mode)
     if mode == "single" or mode == "multi" then
@@ -26,19 +24,12 @@ local function readTargetRuns()
     return readSetting("BatchTargetRuns")
 end
 
-local function persistRecordingReady()
-    if persistentCache then
-        persistentCache.write("RecordingReady", recordingReady == true)
-    end
-end
-
 local function isRecordingReady()
-    return recordingReady == true
+    return recordingReadyRef:get() == true
 end
 
 local function setRecordingReady(value)
-    recordingReady = value == true
-    persistRecordingReady()
+    recordingReadyRef:set(value == true)
 end
 
 local function clearSingleRecording(keepReady)
@@ -58,7 +49,7 @@ local function stopBatchRecording()
 end
 
 function recording.getMode()
-    return readRecordingMode()
+    return currentMode or "single"
 end
 
 function recording.isSingleRunMode()
@@ -168,7 +159,7 @@ function recording.onRunFinalized(timer, run, snapshot)
 end
 
 function recording.initialize()
-    recordingReady = persistentCache and persistentCache.read("RecordingReady", false) == true or false
+    recordingReadyRef:refresh()
     currentMode = readRecordingMode()
 
     if currentMode == "multi" and isRecordingReady() then
@@ -176,7 +167,6 @@ function recording.initialize()
     elseif currentMode == "single" then
         clearSingleRecording(isRecordingReady())
     end
-    persistRecordingReady()
 end
 
 return recording

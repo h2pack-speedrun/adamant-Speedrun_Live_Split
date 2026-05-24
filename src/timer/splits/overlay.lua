@@ -1,12 +1,8 @@
 local deps = ... or {}
 local splits = deps.splits
 local overlay = deps.overlay
-local isVisible = deps.isVisible or function()
-    return true
-end
-local isModeVisible = deps.isModeVisible or function()
-    return true
-end
+local isVisible = deps.isVisible
+local isModeVisible = deps.isModeVisible
 
 local splitOverlay = {}
 local projectionRows = {}

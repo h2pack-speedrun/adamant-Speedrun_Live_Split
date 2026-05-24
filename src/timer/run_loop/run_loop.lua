@@ -3,14 +3,10 @@ local singleRun = deps.singleRun
 local recording = deps.recording
 local splits = deps.splits
 local batch = deps.batch
-local isEnabled = deps.isEnabled or function()
-    return true
-end
-local getCurrentRun = deps.getCurrentRun or function()
-    return nil
-end
-local refreshStructure = deps.refreshStructure or function() end
-local refreshText = deps.refreshText or function() end
+local isEnabled = deps.isEnabled
+local getCurrentRun = deps.getCurrentRun
+local refreshStructure = deps.refreshStructure
+local refreshText = deps.refreshText
 
 local runLoop = {}
 

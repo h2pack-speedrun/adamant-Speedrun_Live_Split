@@ -11,8 +11,8 @@ local MODE_ALIASES = {
     lrt = "ShowLrT",
 }
 local DEFAULTS = {
-    ShowLiveTimers = true,
-    ShowSplitTable = true,
+    ShowRawTimers = false,
+    ShowRecordingTable = true,
     ShowIGT = true,
     ShowRTA = false,
     ShowLrT = false,
@@ -32,28 +32,29 @@ local function readSetting(alias)
 end
 
 local function activeTimer()
-    return timer.singleRun and timer.singleRun.getActiveTimer() or nil
+    return timer.singleRun.getActiveTimer()
 end
 
 local function snapshot()
-    return timer.singleRun and timer.singleRun.getSnapshot() or nil
+    return timer.singleRun.getSnapshot()
 end
 
 local function currentRun()
     return game.getCurrentRun()
 end
 
-function display.services.isLiveRowsEnabled()
-    return module.isEnabled() == true and readSetting("ShowLiveTimers") == true
+function display.services.isRawTimerRowsEnabled()
+    return module.isEnabled() == true
+        and readSetting("ShowRawTimers") == true
+        and timer.recording.status().kind == "active"
 end
 
-function display.services.isSplitTableVisible()
-    return module.isEnabled() == true and readSetting("ShowSplitTable") == true
+function display.services.isRecordingTableVisible()
+    return module.isEnabled() == true and readSetting("ShowRecordingTable") == true
 end
 
 function display.services.isBatchVisible()
-    return display.services.isSplitTableVisible()
-        and timer.recording
+    return display.services.isRecordingTableVisible()
         and timer.recording.isMultiRunMode() == true
 end
 
@@ -66,19 +67,19 @@ function display.services.isModeVisible(mode)
 end
 
 function display.services.isTimerDisplayVisible()
-    local hasSingleRunDisplay = timer.singleRun and timer.singleRun.hasCurrentRunDisplay() == true
-    local hasBatchDisplay = timer.batch and timer.batch.isVisible() == true
-    return display.services.isLiveRowsEnabled() == true
+    local hasSingleRunDisplay = timer.singleRun.hasCurrentRunDisplay() == true
+    local hasBatchDisplay = timer.batch.isVisible() == true
+    return display.services.isRawTimerRowsEnabled() == true
         and (hasSingleRunDisplay or hasBatchDisplay)
 end
 
 function display.services.getDisplayTime(mode)
-    local batchTime = timer.batch and timer.batch.displayTime(mode, activeTimer()) or nil
+    local batchTime = timer.batch.displayTime(mode, activeTimer())
     if batchTime ~= nil then
         return batchTime
     end
     local timerSnapshot = snapshot()
-    return timerSnapshot and timerSnapshot.formatted[mode] or "00:00.00"
+    return timerSnapshot.formatted[mode]
 end
 
 function display.project(ctx, opts)
@@ -123,14 +124,12 @@ function display.registerOverlays(overlays)
         display.project(ctx)
         if timer.runLoop.hasActiveDisplayLoop() then
             timer.runLoop.updateTick()
-            display.refreshText()
         end
     end)
 
     overlays.onInterval("timer", TIMER_REFRESH_INTERVAL, function(ctx)
         overlayContext = ctx
         timer.runLoop.updateTick()
-        display.refreshText()
     end, {
         when = timer.runLoop.hasActiveDisplayLoop,
     })

@@ -26,19 +26,19 @@ end
 local settings = deps.settings or {}
 if settings.read == nil then
     settings.read = function(alias)
-        return store and store.read and store.read(alias) or nil
+        return store.read(alias)
     end
 end
 
 local module = deps.module or {}
 if module.isEnabled == nil then
     module.isEnabled = function()
-        return not (host and host.isEnabled) or host.isEnabled() == true
+        return host.isEnabled() == true
     end
 end
 
 local recordingDeps = deps.recording or {}
-if recordingDeps.persistentCache == nil and host and host.cache then
+if recordingDeps.persistentCache == nil then
     recordingDeps.persistentCache = host.cache.persistent
 end
 
@@ -58,7 +58,7 @@ local display = deps.display or timer.display.services
 timer.singleRun = import('timer/single_run/00_init.lua', nil, {
     core = timer.core,
     isMultiRunMode = function()
-        return timer.recording and timer.recording.isMultiRunMode() or false
+        return timer.recording.isMultiRunMode()
     end,
     overlay = timer.overlay,
     isModeVisible = display.isModeVisible,
@@ -69,7 +69,7 @@ timer.splits = import('timer/splits/00_init.lua', nil, {
     formatTimestamp = timer.core.formatTimestamp,
     isRunSuccess = game.isRunSuccess,
     overlay = timer.overlay,
-    isVisible = display.isSplitTableVisible,
+    isVisible = display.isRecordingTableVisible,
     isModeVisible = display.isModeVisible,
 })
 timer.batch = import('timer/batch/00_init.lua', nil, {
@@ -84,7 +84,7 @@ timer.recording = import('timer/recording/00_init.lua', nil, {
     splits = timer.splits,
     batch = timer.batch,
     readSetting = settings.read,
-    refreshDisplay = recordingDeps.refreshDisplay or display.refreshStructure,
+    refreshDisplay = display.refreshStructure,
     persistentCache = recordingDeps.persistentCache,
 })
 timer.runLoop = import('timer/run_loop/00_init.lua', nil, {
@@ -105,16 +105,16 @@ function timer.initialize()
     timer.recording.initialize()
 end
 
-function timer.registerHooks(hooks)
-    timer.runLoop.installHooks(hooks or host.hooks)
+function timer.registerHooks()
+    timer.runLoop.installHooks(host.hooks)
 end
 
-function timer.registerOverlays(overlays)
-    timer.display.registerOverlays(overlays or host.overlays)
+function timer.registerOverlays()
+    timer.display.registerOverlays(host.overlays)
 end
 
-function timer.registerIntegrations(integrations)
-    timer.integrations.register(integrations or host.integrations)
+function timer.registerIntegrations()
+    timer.integrations.register(host.integrations)
 end
 
 function timer.onSettingsCommitted(_, _, commit)
@@ -123,8 +123,8 @@ function timer.onSettingsCommitted(_, _, commit)
         return
     end
 
-    local recordingRef = commit and commit.actions and commit.actions.get("recording") or nil
-    local recordingAction = recordingRef and recordingRef:has() and recordingRef:read() or nil
+    local recordingRef = commit.actions.get("recording")
+    local recordingAction = recordingRef:has() and recordingRef:read() or nil
     if recordingAction then
         timer.recording.applyAction(recordingAction)
     end

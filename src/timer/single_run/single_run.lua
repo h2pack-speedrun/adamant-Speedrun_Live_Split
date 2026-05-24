@@ -1,8 +1,6 @@
 local deps = ... or {}
 local core = deps.core
-local isMultiRunMode = deps.isMultiRunMode or function()
-    return false
-end
+local isMultiRunMode = deps.isMultiRunMode
 
 local LiveRunTimer = {}
 

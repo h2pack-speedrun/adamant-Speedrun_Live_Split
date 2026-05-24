@@ -19,12 +19,12 @@ function data.buildStorage()
         },
         {
             type = "bool",
-            alias = "ShowLiveTimers",
-            default = true,
+            alias = "ShowRawTimers",
+            default = false,
         },
         {
             type = "bool",
-            alias = "ShowSplitTable",
+            alias = "ShowRecordingTable",
             default = true,
         },
         {

@@ -64,9 +64,9 @@ local function init()
         store = store,
     })
     timer.initialize()
-    timer.registerIntegrations(host.integrations)
-    timer.registerHooks(host.hooks)
-    timer.registerOverlays(host.overlays)
+    timer.registerIntegrations()
+    timer.registerHooks()
+    timer.registerOverlays()
 
     host.fallbackUi.attachGuiOnce(function(fallbackUi)
         rom.gui.add_imgui(fallbackUi.renderWindow)

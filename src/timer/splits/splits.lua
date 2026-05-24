@@ -1,8 +1,6 @@
 local deps = ... or {}
 local formatTimestamp = deps.formatTimestamp
-local isRunSuccess = deps.isRunSuccess or function(run)
-    return run and run.Cleared == true
-end
+local isRunSuccess = deps.isRunSuccess
 
 local ROUTES = {
     underworld = { "F", "G", "H", "I" },

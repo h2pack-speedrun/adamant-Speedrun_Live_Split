@@ -6,9 +6,9 @@ Part of the [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Spee
 
 ## What It Does
 
-Speedrun Timer shows selected timing information on screen while you play. Its main feature is a split table that tracks your route through a run like a compact in-game LiveSplit layout.
+Speedrun Timer records runs and shows selected timing information while you play. Its main feature is a recording table that tracks your route through a run like a compact in-game LiveSplit layout.
 
-The split table supports:
+The recording table supports:
 
 - Underworld routes: Erebus, Oceanus, Fields, and Tartarus.
 - Surface routes: Ephyra, Thessaly, Olympus, and The Summit.
@@ -24,9 +24,10 @@ The timer can show these timing columns:
 
 ## Current Options
 
+- Start, stop, and clear single-run or multi-run recording.
+- Show or hide the recording table.
+- Show optional raw IGT/RTA/LrT timer rows while recording is active.
 - Choose which timer columns are visible.
-- Show or hide the compact live timer rows.
-- Show or hide the LiveSplit-style biome split table.
 - Use single-run split mode or multi-run batch recording.
 - Record a batch of 1 to 10 runs and keep cumulative batch totals.
 

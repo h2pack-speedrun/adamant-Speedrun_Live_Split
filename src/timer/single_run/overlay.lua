@@ -1,12 +1,8 @@
 local deps = ... or {}
 local singleRun = deps.singleRun
 local overlay = deps.overlay
-local isModeVisible = deps.isModeVisible or function()
-    return true
-end
-local isTimerDisplayVisible = deps.isTimerDisplayVisible or function()
-    return singleRun.hasCurrentRunDisplay()
-end
+local isModeVisible = deps.isModeVisible
+local isTimerDisplayVisible = deps.isTimerDisplayVisible
 local getDisplayTime = deps.getDisplayTime
 
 local liveOverlay = {}
@@ -45,7 +41,7 @@ end
 local function updateLine(mode)
     local line = lineValues[mode]
     local snapshot = singleRun.getSnapshot()
-    line.time = getDisplayTime and getDisplayTime(mode) or snapshot.formatted[mode]
+    line.time = getDisplayTime(mode) or snapshot.formatted[mode]
     return line
 end
 
