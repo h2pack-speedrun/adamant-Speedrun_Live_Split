@@ -32,145 +32,150 @@ local STATUS_TEXT_COLORS = {
     recorded = { 0.80, 0.82, 0.88, 1.0 },
     idle = MUTED_TEXT_COLOR,
 }
+local MUTED_TEXT_OPTS = { color = MUTED_TEXT_COLOR }
+local WARNING_TEXT_OPTS = { color = WARNING_TEXT_COLOR }
+local TIMER_MODE_OPTS = {}
+local SHOW_LIVE_TIMERS_OPTS = {
+    label = "Show live timer rows",
+    tooltip = "Show the compact IGT/RTA/LrT rows above the split table.",
+}
+local SHOW_SPLIT_TABLE_OPTS = {
+    label = "Show split table",
+    tooltip = "Show biome split rows for single-run or multi-run tracking.",
+}
+local RECORDING_MODE_OPTS = {
+    values = RECORDING_MODE_VALUES,
+    default = "single",
+    displayValues = RECORDING_MODE_LABELS,
+    optionsPerLine = 2,
+}
+local BATCH_TARGET_RUNS_OPTS = {
+    label = "Runs to record",
+    min = 1,
+    max = 10,
+    default = 3,
+}
+local START_RECORDING_OPTS = {
+    id = "recording_start",
+    value = { kind = "start" },
+}
+local CLEAR_RECORDING_OPTS = {
+    id = "recording_clear",
+    value = { kind = "clear" },
+}
+local STOP_RECORDING_OPTS = {
+    id = "recording_stop",
+    value = { kind = "stop" },
+}
 
-local function drawSection(ui, title, helpText)
-    if ui.Spacing then
-        ui.Spacing()
+for _, option in ipairs(TIMER_MODE_OPTIONS) do
+    TIMER_MODE_OPTS[option.alias] = {
+        label = option.label,
+        tooltip = option.tooltip,
+    }
+end
+
+local function drawSection(draw, title, helpText)
+    local imgui = draw.imgui
+    if imgui.Spacing then
+        imgui.Spacing()
     end
-    lib.widgets.text(ui, title)
-    lib.widgets.separator(ui)
+    draw.widgets.text(title)
+    draw.widgets.separator()
     if helpText then
-        lib.widgets.text(ui, helpText, {
-            color = MUTED_TEXT_COLOR,
-        })
+        draw.widgets.text(helpText, MUTED_TEXT_OPTS)
     end
 end
 
-local function enforceVisibleTimerMode(session)
-    if session.read("ShowIGT") or session.read("ShowRTA") or session.read("ShowLrT") then
+local function enforceVisibleTimerMode(state)
+    if state.read("ShowIGT") or state.read("ShowRTA") or state.read("ShowLrT") then
         return
     end
-    session.write("ShowIGT", true)
+    state.write("ShowIGT", true)
 end
 
-local function readBool(session, alias, fallback)
-    local value = session.read(alias)
+local function readBool(state, alias, fallback)
+    local value = state.read(alias)
     if value == nil then
         return fallback == true
     end
     return value == true
 end
 
-local function readRecordingMode(session)
-    local mode = session.read("RecordingMode")
+local function readRecordingMode(state)
+    local mode = state.read("RecordingMode")
     if mode == "single" or mode == "multi" then
         return mode
     end
-    session.write("RecordingMode", "single")
+    state.write("RecordingMode", "single")
     return "single"
 end
 
-local function drawRecordingControls(ui, session, recordingMode)
+local function withAction(opts, action)
+    opts.action = action
+    return opts
+end
+
+local function drawRecordingControls(draw, state, actions, recordingMode)
+    local imgui = draw.imgui
+    local recordingAction = actions.get("recording")
     local status = logic.getRecordingStatus()
     local statusText = status and status.text or "Not recording"
     local statusKind = status and status.kind or "idle"
-    lib.widgets.text(ui, "Status: " .. statusText, {
+    draw.widgets.text("Status: " .. statusText, {
         color = STATUS_TEXT_COLORS[statusKind] or MUTED_TEXT_COLOR,
     })
 
     if recordingMode == "multi" then
-        lib.widgets.stepper(ui, session, "BatchTargetRuns", {
-            label = "Runs to record",
-            min = 1,
-            max = 10,
-            default = 3,
-        })
+        draw.widgets.stepper(state.get("BatchTargetRuns"), BATCH_TARGET_RUNS_OPTS)
     end
 
-    lib.widgets.button(ui, session, "Start Recording", {
-        id = "recording_start",
-        action = "recording",
-        value = { kind = "start" },
-    })
-    ui.SameLine()
-    lib.widgets.button(ui, session, "Clear Results", {
-        id = "recording_clear",
-        action = "recording",
-        value = { kind = "clear" },
-    })
-    ui.SameLine()
-    lib.widgets.button(ui, session, "Stop Recording", {
-        id = "recording_stop",
-        action = "recording",
-        value = { kind = "stop" },
-    })
-    lib.widgets.text(ui, "Recording stays ready until stopped or the module is disabled.", {
-        color = MUTED_TEXT_COLOR,
-    })
+    draw.widgets.button("Start Recording", withAction(START_RECORDING_OPTS, recordingAction))
+    imgui.SameLine()
+    draw.widgets.button("Clear Results", withAction(CLEAR_RECORDING_OPTS, recordingAction))
+    imgui.SameLine()
+    draw.widgets.button("Stop Recording", withAction(STOP_RECORDING_OPTS, recordingAction))
+    draw.widgets.text("Recording stays ready until stopped or the module is disabled.", MUTED_TEXT_OPTS)
 end
 
-function module.drawTab(ui, session)
-    drawSection(ui, "Timer Columns", "Choose which timer values are shown in timer rows and split tables.")
-    lib.widgets.text(ui, "At least one timer column is always shown.", {
-        color = MUTED_TEXT_COLOR,
-    })
+function module.drawTab(draw, state, actions)
+    drawSection(draw, "Timer Columns", "Choose which timer values are shown in timer rows and split tables.")
+    draw.widgets.text("At least one timer column is always shown.", MUTED_TEXT_OPTS)
 
     for _, option in ipairs(TIMER_MODE_OPTIONS) do
-        lib.widgets.checkbox(ui, session, option.alias, {
-            label = option.label,
-            tooltip = option.tooltip,
-        })
+        draw.widgets.checkbox(state.get(option.alias), TIMER_MODE_OPTS[option.alias])
     end
-    enforceVisibleTimerMode(session)
+    enforceVisibleTimerMode(state)
 
-    drawSection(ui, "Overlay Sections")
-    lib.widgets.checkbox(ui, session, "ShowLiveTimers", {
-        label = "Show live timer rows",
-        tooltip = "Show the compact IGT/RTA/LrT rows above the split table.",
-    })
-    lib.widgets.checkbox(ui, session, "ShowSplitTable", {
-        label = "Show split table",
-        tooltip = "Show biome split rows for single-run or multi-run tracking.",
-    })
+    drawSection(draw, "Overlay Sections")
+    draw.widgets.checkbox(state.get("ShowLiveTimers"), SHOW_LIVE_TIMERS_OPTS)
+    draw.widgets.checkbox(state.get("ShowSplitTable"), SHOW_SPLIT_TABLE_OPTS)
 
-    local showLiveTimers = readBool(session, "ShowLiveTimers", true)
-    local showSplitTable = readBool(session, "ShowSplitTable", true)
+    local showLiveTimers = readBool(state, "ShowLiveTimers", true)
+    local showSplitTable = readBool(state, "ShowSplitTable", true)
     if not showLiveTimers and not showSplitTable then
-        lib.widgets.text(ui, "No overlay sections selected.", {
-            color = WARNING_TEXT_COLOR,
-        })
+        draw.widgets.text("No overlay sections selected.", WARNING_TEXT_OPTS)
     end
 
     if showSplitTable then
-        drawSection(ui, "Recording Mode")
-        lib.widgets.radio(ui, session, "RecordingMode", {
-            values = RECORDING_MODE_VALUES,
-            default = "single",
-            displayValues = RECORDING_MODE_LABELS,
-            optionsPerLine = 2,
-        })
+        drawSection(draw, "Recording Mode")
+        draw.widgets.radio(state.get("RecordingMode"), RECORDING_MODE_OPTS)
 
-        local recordingMode = readRecordingMode(session)
-        drawSection(ui, "Recording")
-        drawRecordingControls(ui, session, recordingMode)
+        local recordingMode = readRecordingMode(state)
+        drawSection(draw, "Recording")
+        drawRecordingControls(draw, state, actions, recordingMode)
         local status = logic.getRecordingStatus()
         if not status or status.kind == "idle" then
-            lib.widgets.text(ui,
+            draw.widgets.text(
                 "Split table is enabled, but recording is not started. Press Start Recording to begin tracking runs.",
-                { color = WARNING_TEXT_COLOR })
+                WARNING_TEXT_OPTS)
         end
     end
 end
 
-function module.drawQuickContent(ui, session)
-    lib.widgets.checkbox(ui, session, "ShowLiveTimers", {
-        label = "Show live timer rows",
-        tooltip = "Show the compact IGT/RTA/LrT rows above the split table.",
-    })
-    lib.widgets.checkbox(ui, session, "ShowSplitTable", {
-        label = "Show split table",
-        tooltip = "Show biome split rows for single-run or multi-run tracking.",
-    })
+function module.drawQuickContent(draw, state)
+    draw.widgets.checkbox(state.get("ShowLiveTimers"), SHOW_LIVE_TIMERS_OPTS)
+    draw.widgets.checkbox(state.get("ShowSplitTable"), SHOW_SPLIT_TABLE_OPTS)
 
 end
 

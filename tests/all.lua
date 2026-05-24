@@ -55,7 +55,7 @@ end
 function LrtTimer:stop()
     self.Running = false
 end
-function LrtTimer:update()
+function LrtTimer.update()
 end
 function LrtTimer:processLoadEvent(isLoading)
     if isLoading and not self.Loading then
@@ -77,20 +77,9 @@ function IgtTimer:new()
     self.__index = self
     return o
 end
-function IgtTimer:getTime()
+function IgtTimer.getTime()
     return CurrentRun and CurrentRun.GameplayTime or 0
 end
-
-lib = {
-    overlays = {
-        order = {
-            module = 1000,
-        },
-    },
-    isModuleEnabled = function()
-        return true
-    end,
-}
 
 assert(loadfile("src/timer/OverlayRows.lua"))(timerModule)
 assert(loadfile("src/timer/Splits.lua"))(timerModule)
@@ -102,6 +91,20 @@ timerModule.host = {
     isEnabled = function()
         return true
     end,
+    cache = {
+        persistent = {
+            read = function(alias, fallback)
+                local value = runtimeValues[alias]
+                if value == nil then
+                    return fallback
+                end
+                return value
+            end,
+            write = function(alias, value)
+                runtimeValues[alias] = value
+            end,
+        },
+    },
 }
 timerModule.store = {
     read = function(alias)
@@ -116,9 +119,6 @@ timerModule.store = {
         end
         return runtimeValues[alias]
     end,
-    writeUnstaged = function(alias, value)
-        runtimeValues[alias] = value
-    end,
 }
 
 local retained = {
@@ -127,6 +127,9 @@ local retained = {
     intervals = {},
 }
 timerModule.RegisterOverlays({
+    order = {
+        module = 1000,
+    },
     createLine = function(name, spec)
         retained.lines[name] = spec
     end,
@@ -221,7 +224,7 @@ local snapshot = {
 }
 
 timerModule.ConfigureSplitOverlays({
-    order = lib.overlays.order.module + 20,
+    order = 1020,
     getTimer = function()
         return timer
     end,
@@ -398,17 +401,6 @@ timerModule.StopRecording()
 assertEqual(runtimeValues.RecordingReady, false)
 assertEqual(timerModule.GetRecordingStatus().kind, "idle")
 
-lib.widgets = {
-    text = function() end,
-    separator = function() end,
-    checkbox = function() return false end,
-    radio = function() return false end,
-    stepper = function() return false end,
-    button = function(_, session, _, opts)
-        session.stageAction(opts.action, opts.value)
-        return true
-    end,
-}
 local uiModule = dofile("src/ui.lua").bind({
     getRecordingStatus = function()
         return timerModule.GetRecordingStatus()
@@ -433,21 +425,84 @@ local uiSessionValues = {
     RecordingMode = "single",
 }
 local uiSessionActions = {}
-uiModule.drawTab({
-    SameLine = function() end,
-    Spacing = function() end,
-}, {
+local uiDraw = {
+    imgui = {
+        SameLine = function() end,
+        Spacing = function() end,
+    },
+    widgets = {
+        text = function() end,
+        separator = function() end,
+        checkbox = function() return false end,
+        radio = function() return false end,
+        stepper = function() return false end,
+        button = function(_, opts)
+            opts.action:stage(opts.value)
+            return true
+        end,
+    },
+}
+local drawState = {
+    get = function(alias)
+        return {
+            alias = alias,
+        }
+    end,
     read = function(alias)
         return uiSessionValues[alias]
     end,
     write = function(alias, value)
         uiSessionValues[alias] = value
     end,
-    stageAction = function(action, value)
-        uiSessionActions[action] = value
+}
+local uiActions = {
+    get = function(action)
+        return {
+            stage = function(_, value)
+                uiSessionActions[action] = value
+            end,
+        }
     end,
-})
+}
+uiModule.drawTab({
+    imgui = uiDraw.imgui,
+    widgets = uiDraw.widgets,
+}, drawState, uiActions)
 assertEqual(uiSessionValues.ShowIGT, true)
 assertEqual(uiSessionActions.recording.kind, "stop")
+
+local harness = dofile("../../Setup/tests/module_entrypoint_harness.lua")
+local boot = harness.bootModule({
+    pluginGuid = "adamant-Speedrun_Timer",
+    moduleSrcDir = "src",
+    configureEnv = function(env)
+        env._worldTime = 0
+        env.GetTime = function()
+            return 0
+        end
+        env.CurrentRun = {
+            GameplayTime = 0,
+        }
+    end,
+})
+assert(boot.host and boot.host.setEnabled(true))
+
+local consumerHost = boot.lib.createModule({
+    pluginGuid = "test-SpeedrunTimerConsumer",
+    config = {},
+    id = "TimerConsumer",
+    name = "Timer Consumer",
+    drawTab = function() end,
+})
+assert(consumerHost and consumerHost.activate())
+
+assertEqual(consumerHost.integrations.poll("speedrun.timer", "getRealTime", "missing"), "00:00.00")
+assertEqual(consumerHost.integrations.poll("speedrun.timer", "getLoadRemovedTime", "missing"), "00:00.00")
+assertEqual(consumerHost.integrations.poll("speedrun.timer", "getInGameTime", "missing"), "00:00.00")
+local times = consumerHost.integrations.poll("speedrun.timer", "getTimes", nil)
+assertEqual(times.realTime, "00:00.00")
+assertEqual(times.loadRemovedTime, "00:00.00")
+assertEqual(times.inGameTime, "00:00.00")
+assertEqual(next(boot.moduleEnv.public), nil)
 
 print("Timer tests passed")

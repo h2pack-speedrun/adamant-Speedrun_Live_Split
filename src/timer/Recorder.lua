@@ -17,20 +17,11 @@ local function refreshDisplay()
     end
 end
 
-local function readUnstaged(alias)
-    local store = timerApi.store
-    return store and store.read and store.read(alias) or nil
-end
-
-local function writeUnstaged(alias, value)
-    local store = timerApi.store
-    if store and store.writeUnstaged then
-        store.writeUnstaged(alias, value)
-    end
-end
-
 local function persistRecordingReady()
-    writeUnstaged("RecordingReady", recordingReady == true)
+    local cache = timerApi.host and timerApi.host.cache and timerApi.host.cache.persistent or nil
+    if cache then
+        cache.write("RecordingReady", recordingReady == true)
+    end
 end
 
 local function normalizeMode(mode)
@@ -203,7 +194,8 @@ function timerApi.OnRecordingRunFinalized(timer, run)
 end
 
 function timerApi.InitializeRecordingState()
-    recordingReady = readUnstaged("RecordingReady") == true
+    local cache = timerApi.host and timerApi.host.cache and timerApi.host.cache.persistent or nil
+    recordingReady = cache and cache.read("RecordingReady", false) == true or false
     currentMode = readRecordingMode()
 
     if currentMode == "multi" and isRecordingReady() then

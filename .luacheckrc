@@ -2,7 +2,6 @@ std = "lua52"
 max_line_length = 120
 globals = {
     "rom",
-    "public",
     "config",
     "modutil",
     "game",
@@ -15,14 +14,12 @@ globals = {
     "RtaTimer",
     "Timer",
     "ScreenAnchors",
-    "MODULE_ANCHOR",
-    "lib"
+    "_worldTime",
     }
 read_globals = {
     "imgui",
     "import_as_fallback",
     "import",
-    "_worldTime",
     "DeepCopyTable",
     "UIData",
     "ModifyTextBox",

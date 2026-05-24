@@ -15,26 +15,6 @@ bindTimerFile("timer/Batch.lua")
 bindTimerFile("timer/Recorder.lua")
 bindTimerFile("timer/Runtime.lua")
 
-local function registerPublicApi()
-    public.getRealTime = function()
-        if timer.GetRealTime then
-            return timer.GetRealTime()
-        end
-    end
-
-    public.getLoadRemovedTime = function()
-        if timer.GetLoadRemovedTime then
-            return timer.GetLoadRemovedTime()
-        end
-    end
-
-    public.getInGameTime = function()
-        if timer.GetInGameTime then
-            return timer.GetInGameTime()
-        end
-    end
-end
-
 function module.initialize(host, store)
     timer.host = host
     timer.store = store
@@ -44,7 +24,6 @@ function module.initialize(host, store)
     if timer.InitializeRecordingState then
         timer.InitializeRecordingState()
     end
-    registerPublicApi()
 end
 
 function module.registerHooks(host, store)
@@ -53,16 +32,34 @@ function module.registerHooks(host, store)
     timer.RegisterHooks(host, store)
 end
 
-function module.registerOverlays(overlays, host, store)
+function module.registerOverlays(host, store)
     timer.host = host
     timer.store = store
-    timer.RegisterOverlays(overlays, host, store)
+    timer.RegisterOverlays(host.overlays, host, store)
 end
 
 function module.onSettingsCommitted(host, store, commit)
     timer.host = host
     timer.store = store
     timer.OnSettingsCommitted(host, store, commit)
+end
+
+function module.getRealTime()
+    if timer.GetRealTime then
+        return timer.GetRealTime()
+    end
+end
+
+function module.getLoadRemovedTime()
+    if timer.GetLoadRemovedTime then
+        return timer.GetLoadRemovedTime()
+    end
+end
+
+function module.getInGameTime()
+    if timer.GetInGameTime then
+        return timer.GetInGameTime()
+    end
 end
 
 function module.getRecordingStatus()

@@ -422,7 +422,10 @@ local function modeVisible(mode)
 end
 
 function timerApi.ConfigureSplitOverlays(config)
-    overlayConfig = config
+    overlayConfig = overlayConfig or {}
+    for key, value in pairs(config or {}) do
+        overlayConfig[key] = value
+    end
 end
 
 function timerApi.RegisterSplitOverlay(overlays)

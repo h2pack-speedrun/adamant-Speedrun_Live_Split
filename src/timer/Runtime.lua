@@ -42,9 +42,6 @@ function SpeedrunTimer:getInGameTime()
     return self.IgtTimer:getTime()
 end
 
-local TIMER_OVERLAY_ORDER = lib.overlays.order.module + 10
-local BATCH_OVERLAY_ORDER = TIMER_OVERLAY_ORDER + 10
-local SPLIT_OVERLAY_ORDER = BATCH_OVERLAY_ORDER + 20
 local TIMER_REFRESH_INTERVAL = 0.05
 local OVERLAY_REGION = timerApi.TimerOverlay.region
 local MODE_ALIASES = {
@@ -265,15 +262,8 @@ local function RefreshTimerStructure()
     })
 end
 
-if timerApi.ConfigureBatchOverlays then
-    timerApi.ConfigureBatchOverlays({
-        order = BATCH_OVERLAY_ORDER,
-    })
-end
-
 if timerApi.ConfigureSplitOverlays then
     timerApi.ConfigureSplitOverlays({
-        order = SPLIT_OVERLAY_ORDER,
         getTimer = function()
             return activeTimer
         end,
@@ -341,11 +331,11 @@ local function updateTimerTick()
     UpdateTimerSnapshot()
 end
 
-local function createTimerLine(overlays, name, label, mode, orderOffset)
+local function createTimerLine(overlays, timerOverlayOrder, name, label, mode, orderOffset)
     overlays.createLine(name, {
         componentName = "SpeedrunTimer_" .. label,
         region = OVERLAY_REGION,
-        order = TIMER_OVERLAY_ORDER + orderOffset,
+        order = timerOverlayOrder + orderOffset,
         columnGap = 20,
         columns = timerApi.TimerOverlay.buildSummaryColumns(),
         visible = function()
@@ -355,9 +345,24 @@ local function createTimerLine(overlays, name, label, mode, orderOffset)
 end
 
 function timerApi.RegisterOverlays(overlays)
-    createTimerLine(overlays, "summary.igt", "IGT", "igt", 0)
-    createTimerLine(overlays, "summary.rta", "RTA", "rta", 1)
-    createTimerLine(overlays, "summary.lrt", "LrT", "lrt", 2)
+    local timerOverlayOrder = overlays.order.module + 10
+    local batchOverlayOrder = timerOverlayOrder + 10
+    local splitOverlayOrder = batchOverlayOrder + 20
+
+    if timerApi.ConfigureBatchOverlays then
+        timerApi.ConfigureBatchOverlays({
+            order = batchOverlayOrder,
+        })
+    end
+    if timerApi.ConfigureSplitOverlays then
+        timerApi.ConfigureSplitOverlays({
+            order = splitOverlayOrder,
+        })
+    end
+
+    createTimerLine(overlays, timerOverlayOrder, "summary.igt", "IGT", "igt", 0)
+    createTimerLine(overlays, timerOverlayOrder, "summary.rta", "RTA", "rta", 1)
+    createTimerLine(overlays, timerOverlayOrder, "summary.lrt", "LrT", "lrt", 2)
 
     if timerApi.RegisterBatchOverlay then
         timerApi.RegisterBatchOverlay(overlays)
@@ -427,7 +432,8 @@ function timerApi.OnSettingsCommitted(_, _, commit)
         StopAndCleanup()
         return
     end
-    local recordingAction = commit and commit.readAction and commit.readAction("recording") or nil
+    local recordingRef = commit and commit.actions and commit.actions.get("recording") or nil
+    local recordingAction = recordingRef and recordingRef:has() and recordingRef:read() or nil
     if recordingAction and timerApi.ApplyRecordingAction then
         timerApi.ApplyRecordingAction(recordingAction)
     end
@@ -454,7 +460,7 @@ local function HandleRunFinalized()
 end
 
 function timerApi.RegisterHooks()
-    lib.hooks.Wrap("StartNewRun", function(baseFunc, prevRun, args)
+    timerApi.host.hooks.wrap("StartNewRun", function(baseFunc, prevRun, args)
         if not IsModuleEnabled() then return baseFunc(prevRun, args) end
         if activeTimer then
             ClearActiveTimer()
@@ -471,28 +477,28 @@ function timerApi.RegisterHooks()
         return run
     end)
 
-    lib.hooks.Wrap("RoomEntranceMaterialize", function(baseFunc, ...)
+    timerApi.host.hooks.wrap("RoomEntranceMaterialize", function(baseFunc, ...)
         if not IsModuleEnabled() then return baseFunc(...) end
         local val = baseFunc(...)
         StartTimerDisplayLoop()
         return val
     end)
 
-    lib.hooks.Wrap("RoomEntranceDreamBiomeStart", function(baseFunc, ...)
+    timerApi.host.hooks.wrap("RoomEntranceDreamBiomeStart", function(baseFunc, ...)
         if not IsModuleEnabled() then return baseFunc(...) end
         local val = baseFunc(...)
         StartTimerDisplayLoop()
         return val
     end)
 
-    lib.hooks.Wrap("RecordRunStats", function(baseFunc, ...)
+    timerApi.host.hooks.wrap("RecordRunStats", function(baseFunc, ...)
         if not IsModuleEnabled() then return baseFunc(...) end
         local val = baseFunc(...)
         HandleRunFinalized()
         return val
     end)
 
-    lib.hooks.Wrap("AddTimerBlock", function(baseFunc, currRun, timerBlockName)
+    timerApi.host.hooks.wrap("AddTimerBlock", function(baseFunc, currRun, timerBlockName)
         local val = baseFunc(currRun, timerBlockName)
         local shouldRecordLoad = IsModuleEnabled() and timerBlockName == "MapLoad"
         if shouldRecordLoad and activeTimer and activeTimer.Running then
@@ -504,7 +510,7 @@ function timerApi.RegisterHooks()
         return val
     end)
 
-    lib.hooks.Wrap("RemoveTimerBlock", function(baseFunc, currRun, timerBlockName)
+    timerApi.host.hooks.wrap("RemoveTimerBlock", function(baseFunc, currRun, timerBlockName)
         local val = baseFunc(currRun, timerBlockName)
         local shouldRecordLoad = IsModuleEnabled() and timerBlockName == "MapLoad"
         if shouldRecordLoad and activeTimer and activeTimer.Running then

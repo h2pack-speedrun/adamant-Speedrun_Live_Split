@@ -40,14 +40,6 @@ function data.buildStorage()
             min = 1,
             max = 15,
         },
-        {
-            type = "bool",
-            alias = "RecordingReady",
-            default = false,
-            persist = true,
-            stage = false,
-            hash = false,
-        },
     }
 end
 

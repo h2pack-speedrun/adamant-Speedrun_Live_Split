@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Ported timer boot, overlays, hooks, actions, fallback UI, and draw widgets to the current ModpackLib host/draw APIs.
+- Moved the recording-ready runtime marker from managed storage to persistent cache.
+- Replaced the ENVY public timer read API with the `speedrun.timer` integration provider.
+
 ## [1.1.2] - 2026-05-06
 
 ### Changed
