@@ -38,7 +38,9 @@ local function newPersistentCache(backing)
         has = function(alias)
             return backing[alias] ~= nil
         end,
-        snapshotRef = function(alias, fallback)
+        create = function(alias, opts)
+            opts = opts or {}
+            local fallback = opts.default
             local snapshot = backing[alias]
             if snapshot == nil then
                 snapshot = fallback

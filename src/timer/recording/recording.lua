@@ -7,7 +7,9 @@ local persistentCache = deps.persistentCache
 
 local recording = {}
 local currentMode = nil
-local recordingReadyRef = persistentCache.snapshotRef("RecordingReady", false)
+local recordingReadyRef = persistentCache.create("RecordingReady", {
+    default = false,
+})
 
 local function normalizeMode(mode)
     if mode == "single" or mode == "multi" then
