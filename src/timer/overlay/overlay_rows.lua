@@ -1,11 +1,8 @@
-local timerApi = ...
-
 local OVERLAY_REGION = "middleRightStack"
 local LABEL_FONT = "P22UndergroundSCMedium"
 local VALUE_FONT = "NumericP22UndergroundSCMedium"
 
-timerApi.TimerOverlay = timerApi.TimerOverlay or {}
-local timerOverlay = timerApi.TimerOverlay
+local timerOverlay = {}
 timerOverlay.region = OVERLAY_REGION
 
 local function buildModeColumn(mode, modeVisible)
@@ -59,4 +56,4 @@ function timerOverlay.buildTimerTableColumns(modeVisible)
     }
 end
 
-return timerApi
+return timerOverlay

@@ -1,13 +1,17 @@
 local timerApi = ...
+local timerCore = timerApi.core
+local timerOverlay = timerApi.overlay
+local timerBatch = timerApi.batch
+local timerSplits = timerApi.splits
 
 local SpeedrunTimer = {}
 
 function SpeedrunTimer:new()
     local o = {}
     o.Running = false
-    o.RtaTimer = RtaTimer:new()
-    o.LrtTimer = LrtTimer:new({ withRtaTimer = o.RtaTimer })
-    o.IgtTimer = IgtTimer:new()
+    o.RtaTimer = timerCore.RtaTimer:new()
+    o.LrtTimer = timerCore.LrtTimer:new({ withRtaTimer = o.RtaTimer })
+    o.IgtTimer = timerCore.IgtTimer:new()
     setmetatable(o, self)
     self.__index = self
     return o
@@ -43,7 +47,7 @@ function SpeedrunTimer:getInGameTime()
 end
 
 local TIMER_REFRESH_INTERVAL = 0.05
-local OVERLAY_REGION = timerApi.TimerOverlay.region
+local OVERLAY_REGION = timerOverlay.region
 local MODE_ALIASES = {
     igt = "ShowIGT",
     rta = "ShowRTA",
@@ -60,29 +64,8 @@ local DEFAULT_SETTING_VALUES = {
     RecordingMode = "single",
 }
 
-local function ToCentiseconds(timestamp)
-    if not timestamp then
-        return 0
-    end
-    return math.floor((timestamp * 100) + 0.0000001)
-end
-
-local function FormatCentiseconds(totalCentiseconds)
-    local centiseconds = totalCentiseconds % 100
-    local totalSeconds = math.floor(totalCentiseconds / 100)
-    local seconds = totalSeconds % 60
-    local totalMinutes = math.floor(totalSeconds / 60)
-    local minutes = totalMinutes % 60
-    local hours = math.floor(totalMinutes / 60)
-
-    if hours == 0 then
-        return string.format("%02d:%02d.%02d", minutes, seconds, centiseconds)
-    end
-    return string.format("%02d:%02d:%02d.%02d", hours, minutes, seconds, centiseconds)
-end
-
 function timerApi.FormatTimestamp(timestamp)
-    return FormatCentiseconds(ToCentiseconds(timestamp))
+    return timerCore.formatTimestamp(timestamp)
 end
 
 local activeTimer = nil
@@ -112,10 +95,10 @@ local function UpdateSnapshotValue(key, value)
     value = value or 0
     timerSnapshot[key] = value
 
-    local centiseconds = ToCentiseconds(value)
+    local centiseconds = timerCore.toCentiseconds(value)
     if timerSnapshot.centiseconds[key] ~= centiseconds then
         timerSnapshot.centiseconds[key] = centiseconds
-        timerSnapshot.formatted[key] = FormatCentiseconds(centiseconds)
+        timerSnapshot.formatted[key] = timerCore.formatCentiseconds(centiseconds)
     end
 end
 
@@ -160,7 +143,7 @@ end
 
 local function IsTimerOverlayVisible()
     local hasCurrentRunDisplay = activeTimer and (activeTimer.Running or showCompletedRun)
-    local hasBatchDisplay = timerApi.IsBatchVisible and timerApi.IsBatchVisible()
+    local hasBatchDisplay = timerBatch.IsBatchVisible()
     return IsModuleEnabled() and IsLiveTimerRowsEnabled() and (hasCurrentRunDisplay or hasBatchDisplay)
 end
 
@@ -214,20 +197,32 @@ local function SyncDisplaySettings()
 end
 
 local function GetDisplayTime(mode)
-    if timerApi.GetBatchDisplayTime then
-        local batchTime = timerApi.GetBatchDisplayTime(mode, activeTimer)
-        if batchTime ~= nil then
-            return batchTime
-        end
+    local batchTime = timerBatch.GetBatchDisplayTime(mode, activeTimer)
+    if batchTime ~= nil then
+        return batchTime
     end
     return timerSnapshot.formatted[mode]
 end
 
-local function buildTimerLine(label, mode)
-    return {
-        label = label .. ":",
-        time = GetDisplayTime(mode),
-    }
+local timerLines = {
+    igt = {
+        label = "IGT:",
+        time = "00:00.00",
+    },
+    rta = {
+        label = "RTA:",
+        time = "00:00.00",
+    },
+    lrt = {
+        label = "LrT:",
+        time = "00:00.00",
+    },
+}
+
+local function updateTimerLine(mode)
+    local line = timerLines[mode]
+    line.time = GetDisplayTime(mode)
+    return line
 end
 
 local function projectTimerOverlay(ctx, opts)
@@ -242,16 +237,12 @@ local function projectTimerOverlay(ctx, opts)
         SyncDisplaySettings()
     end
 
-    ctx.setLine("summary.igt", buildTimerLine("IGT", "igt"))
-    ctx.setLine("summary.rta", buildTimerLine("RTA", "rta"))
-    ctx.setLine("summary.lrt", buildTimerLine("LrT", "lrt"))
+    ctx.setLine("summary.igt", updateTimerLine("igt"))
+    ctx.setLine("summary.rta", updateTimerLine("rta"))
+    ctx.setLine("summary.lrt", updateTimerLine("lrt"))
 
-    if timerApi.BuildBatchOverlayRows then
-        ctx.setTable("batch", timerApi.BuildBatchOverlayRows())
-    end
-    if timerApi.BuildSplitOverlayRows then
-        ctx.setTable("splits", timerApi.BuildSplitOverlayRows(activeTimer, nil, opts.liveOnly == true))
-    end
+    ctx.setTable("batch", timerBatch.BuildBatchOverlayRows())
+    ctx.setTable("splits", timerSplits.BuildSplitOverlayRows(activeTimer, nil, opts.liveOnly == true))
 
     ctx.refreshRegion(OVERLAY_REGION)
 end
@@ -262,29 +253,25 @@ local function RefreshTimerStructure()
     })
 end
 
-if timerApi.ConfigureSplitOverlays then
-    timerApi.ConfigureSplitOverlays({
-        getTimer = function()
-            return activeTimer
-        end,
-        getSnapshot = GetTimerSnapshot,
-        isVisible = function()
-            return IsSplitTableEnabled()
-                and timerApi.IsSplitRecordingOverlayVisible
-                and timerApi.IsSplitRecordingOverlayVisible()
-        end,
-        isModeVisible = IsTimerModeVisible,
-    })
-end
+timerSplits.ConfigureSplitOverlays({
+    getTimer = function()
+        return activeTimer
+    end,
+    getSnapshot = GetTimerSnapshot,
+    isVisible = function()
+        return IsSplitTableEnabled()
+            and timerApi.IsSplitRecordingOverlayVisible
+            and timerApi.IsSplitRecordingOverlayVisible()
+    end,
+    isModeVisible = IsTimerModeVisible,
+})
 
-if timerApi.ConfigureBatchMode then
-    timerApi.ConfigureBatchMode({
-        isVisible = function()
-            return IsSplitTableEnabled() and timerApi.IsMultiRunMode and timerApi.IsMultiRunMode()
-        end,
-        isModeVisible = IsTimerModeVisible,
-    })
-end
+timerBatch.ConfigureBatchMode({
+    isVisible = function()
+        return IsSplitTableEnabled() and timerApi.IsMultiRunMode and timerApi.IsMultiRunMode()
+    end,
+    isModeVisible = IsTimerModeVisible,
+})
 
 if timerApi.ConfigureRecorder then
     timerApi.ConfigureRecorder({
@@ -309,7 +296,7 @@ local StopAndCleanup = nil
 
 local function HasActiveDisplayLoop()
     local hasRunningTimer = activeTimer and activeTimer.Running
-    local hasActiveBatch = timerApi.IsBatchActive and timerApi.IsBatchActive()
+    local hasActiveBatch = timerBatch.IsBatchActive()
     return hasRunningTimer or hasActiveBatch
 end
 
@@ -321,13 +308,9 @@ local function updateTimerTick()
 
     if activeTimer and activeTimer.Running then
         activeTimer:update()
-        if timerApi.RecordCompletedBiomeSplits then
-            timerApi.RecordCompletedBiomeSplits(activeTimer)
-        end
+        timerSplits.RecordCompletedBiomeSplits(activeTimer)
     end
-    if timerApi.UpdateBatchTimer then
-        timerApi.UpdateBatchTimer()
-    end
+    timerBatch.UpdateBatchTimer()
     UpdateTimerSnapshot()
 end
 
@@ -337,7 +320,7 @@ local function createTimerLine(overlays, timerOverlayOrder, name, label, mode, o
         region = OVERLAY_REGION,
         order = timerOverlayOrder + orderOffset,
         columnGap = 20,
-        columns = timerApi.TimerOverlay.buildSummaryColumns(),
+        columns = timerOverlay.buildSummaryColumns(),
         visible = function()
             return IsTimerModeOverlayVisible(mode)
         end,
@@ -349,27 +332,19 @@ function timerApi.RegisterOverlays(overlays)
     local batchOverlayOrder = timerOverlayOrder + 10
     local splitOverlayOrder = batchOverlayOrder + 20
 
-    if timerApi.ConfigureBatchOverlays then
-        timerApi.ConfigureBatchOverlays({
-            order = batchOverlayOrder,
-        })
-    end
-    if timerApi.ConfigureSplitOverlays then
-        timerApi.ConfigureSplitOverlays({
-            order = splitOverlayOrder,
-        })
-    end
+    timerBatch.ConfigureBatchOverlays({
+        order = batchOverlayOrder,
+    })
+    timerSplits.ConfigureSplitOverlays({
+        order = splitOverlayOrder,
+    })
 
     createTimerLine(overlays, timerOverlayOrder, "summary.igt", "IGT", "igt", 0)
     createTimerLine(overlays, timerOverlayOrder, "summary.rta", "RTA", "rta", 1)
     createTimerLine(overlays, timerOverlayOrder, "summary.lrt", "LrT", "lrt", 2)
 
-    if timerApi.RegisterBatchOverlay then
-        timerApi.RegisterBatchOverlay(overlays)
-    end
-    if timerApi.RegisterSplitOverlay then
-        timerApi.RegisterSplitOverlay(overlays)
-    end
+    timerBatch.RegisterBatchOverlay(overlays)
+    timerSplits.RegisterSplitOverlay(overlays)
 
     overlays.onCommit(function(ctx)
         projectTimerOverlay(ctx, {
@@ -504,8 +479,8 @@ function timerApi.RegisterHooks()
         if shouldRecordLoad and activeTimer and activeTimer.Running then
             activeTimer.LrtTimer:processLoadEvent(true)
         end
-        if shouldRecordLoad and timerApi.ProcessBatchLoadEvent then
-            timerApi.ProcessBatchLoadEvent(true)
+        if shouldRecordLoad then
+            timerBatch.ProcessBatchLoadEvent(true)
         end
         return val
     end)
@@ -516,8 +491,8 @@ function timerApi.RegisterHooks()
         if shouldRecordLoad and activeTimer and activeTimer.Running then
             activeTimer.LrtTimer:processLoadEvent(false)
         end
-        if shouldRecordLoad and timerApi.ProcessBatchLoadEvent then
-            timerApi.ProcessBatchLoadEvent(false)
+        if shouldRecordLoad then
+            timerBatch.ProcessBatchLoadEvent(false)
         end
         return val
     end)

@@ -22,9 +22,19 @@ local loader = reload.auto_single()
 local function init()
     import_as_fallback(rom.game)
     local data = import("data.lua")
-    local integrations = import("integrations.lua")
-    local logic = import("logic.lua").bind()
-    local ui = import("ui.lua").bind(logic)
+    local timer = nil
+    local timerFacade = {
+        getRecordingStatus = function()
+            if timer then
+                return timer.getRecordingStatus()
+            end
+            return {
+                kind = "idle",
+                text = "Not recording",
+            }
+        end,
+    }
+    local ui = import("ui.lua").bind(timerFacade)
 
     local host, store = lib.createModule({
         pluginGuid = PLUGIN_GUID,
@@ -37,7 +47,11 @@ local function init()
         actions = {
             recording = function() end,
         },
-        onSettingsCommitted = logic.onSettingsCommitted,
+        onSettingsCommitted = function(...)
+            if timer then
+                timer.onSettingsCommitted(...)
+            end
+        end,
         drawTab = ui.drawTab,
         drawQuickContent = ui.drawQuickContent,
     })
@@ -45,10 +59,14 @@ local function init()
         return
     end
 
-    logic.initialize(host, store)
-    integrations.register(host, logic)
-    logic.registerHooks(host, store)
-    logic.registerOverlays(host, store)
+    timer = import("timer/00_init.lua", nil, {
+        host = host,
+        store = store,
+    })
+    timer.initialize()
+    timer.registerIntegrations(host.integrations)
+    timer.registerHooks(host.hooks)
+    timer.registerOverlays(host.overlays)
 
     host.fallbackUi.attachGuiOnce(function(fallbackUi)
         rom.gui.add_imgui(fallbackUi.renderWindow)

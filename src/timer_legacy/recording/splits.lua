@@ -1,4 +1,17 @@
-local timerApi = ...
+local deps = ... or {}
+local splits = {}
+local timerOverlay = deps.overlay
+local formatTimestamp = deps.formatTimestamp
+local getCurrentRun = deps.getCurrentRun or function()
+    return rom and rom.game and rom.game.CurrentRun or CurrentRun
+end
+local refreshDisplay = deps.refreshDisplay or function() end
+local isRunSuccess = deps.isRunSuccess or function(run)
+    if type(WasRunSuccess) == "function" and run and run.RunResult ~= nil then
+        return WasRunSuccess(run) == true
+    end
+    return run and run.Cleared == true
+end
 
 local ROUTES = {
     underworld = { "F", "G", "H", "I" },
@@ -51,6 +64,16 @@ local splitRows = {
         lrt = "00:00.00",
     },
 }
+local splitProjectionRows = {}
+local splitProjectionHeaderRow = { key = "header", label = "", igt = "", rta = "", lrt = "" }
+local splitProjectionBiomeRows = {
+    { key = "biome1", label = "", igt = "", rta = "", lrt = "" },
+    { key = "biome2", label = "", igt = "", rta = "", lrt = "" },
+    { key = "biome3", label = "", igt = "", rta = "", lrt = "" },
+    { key = "biome4", label = "", igt = "", rta = "", lrt = "" },
+}
+local splitProjectionTotalRow = { key = "total", label = "", igt = "", rta = "", lrt = "" }
+local splitProjectionCount = 0
 
 local function clearRow(row)
     row.label = ""
@@ -69,10 +92,6 @@ local function clearSplitRows()
         clearRow(row)
     end
     clearRow(splitRows.total)
-end
-
-local function getCurrentRun()
-    return rom and rom.game and rom.game.CurrentRun or CurrentRun
 end
 
 local function cloneRoute(route)
@@ -101,7 +120,7 @@ local function detectRoute(run)
     return "underworld", cloneRoute(ROUTES.underworld)
 end
 
-function timerApi.StartSplitRun(run)
+function splits.StartSplitRun(run)
     if not splitState.started then
         return
     end
@@ -158,10 +177,10 @@ local function formatTime(value)
     if value == nil then
         return ""
     end
-    return timerApi.FormatTimestamp(value)
+    return formatTimestamp(value)
 end
 
-function timerApi.RecordCompletedBiomeSplits(timer, run)
+function splits.RecordCompletedBiomeSplits(timer, run)
     if not splitState.active then
         return false
     end
@@ -197,22 +216,19 @@ local function isSuccessRun(run)
     if not run then
         return false
     end
-    if type(WasRunSuccess) == "function" and run.RunResult ~= nil then
-        return WasRunSuccess(run) == true
-    end
-    return run.Cleared == true
+    return isRunSuccess(run) == true
 end
 
-function timerApi.IsSingleRecordingVisible()
+function splits.IsSingleRecordingVisible()
     return splitState.started
         and (splitState.active or splitState.completed or splitState.failed)
 end
 
-function timerApi.IsSingleRecordingStarted()
+function splits.IsSingleRecordingStarted()
     return splitState.started == true
 end
 
-function timerApi.GetSingleRecordingStatus()
+function splits.GetSingleRecordingStatus()
     if splitState.active then
         return {
             kind = "active",
@@ -243,7 +259,7 @@ function timerApi.GetSingleRecordingStatus()
     }
 end
 
-function timerApi.ClearSingleRecording(keepStarted)
+function splits.ClearSingleRecording(keepStarted)
     splitState.started = keepStarted == true
     splitState.active = false
     splitState.failed = false
@@ -256,14 +272,14 @@ function timerApi.ClearSingleRecording(keepStarted)
     clearSplitRows()
 end
 
-function timerApi.FinalizeSingleRecording(timer, run)
+function splits.FinalizeSingleRecording(timer, run)
     if not splitState.active then
         return
     end
 
     run = run or getCurrentRun()
-    timerApi.RecordCompletedBiomeSplits(timer, run)
-    timerApi.UpdateSplitDisplayRows(timer, run)
+    splits.RecordCompletedBiomeSplits(timer, run)
+    splits.UpdateSplitDisplayRows(timer, run)
     splitState.active = false
     splitState.completed = isSuccessRun(run)
     splitState.failed = not splitState.completed
@@ -271,7 +287,7 @@ end
 
 local function getRoute(run)
     if splitState.routeType == nil then
-        timerApi.StartSplitRun(run)
+        splits.StartSplitRun(run)
     end
     if splitState.routeType == "dream" then
         return run and run.BiomeVisitOrder or EMPTY_ROUTE
@@ -361,7 +377,7 @@ local function updateTrackedSplitRow(index, timer, run, route, snapshot)
     updateSplitDisplayRow(row, index, timer, run, route, snapshot)
 end
 
-function timerApi.UpdateSplitDisplayRows(timer, run)
+function splits.UpdateSplitDisplayRows(timer, run)
     run = run or getCurrentRun()
     local route = getRoute(run)
     local snapshot = getSnapshot()
@@ -373,12 +389,12 @@ function timerApi.UpdateSplitDisplayRows(timer, run)
     splitState.currentIndex, splitState.currentBiome = getCurrentRouteIndex(run, route)
 end
 
-function timerApi.UpdateLiveSplitDisplayRows(timer, run)
+function splits.UpdateLiveSplitDisplayRows(timer, run)
     run = run or getCurrentRun()
     local route = getRoute(run)
     local currentIndex, currentBiome = getCurrentRouteIndex(run, route)
     if currentIndex ~= splitState.currentIndex or currentBiome ~= splitState.currentBiome then
-        timerApi.UpdateSplitDisplayRows(timer, run)
+        splits.UpdateSplitDisplayRows(timer, run)
         return true
     end
 
@@ -390,7 +406,7 @@ function timerApi.UpdateLiveSplitDisplayRows(timer, run)
     return false
 end
 
-function timerApi.GetSplitDisplayRow(index, timer, run)
+function splits.GetSplitDisplayRow(index, timer, run)
     run = run or getCurrentRun()
     local route = getRoute(run)
     local row = splitRows.biomes[index]
@@ -405,7 +421,7 @@ function timerApi.GetSplitDisplayRow(index, timer, run)
     return row
 end
 
-function timerApi.GetSplitTotalRow(timer)
+function splits.GetSplitTotalRow(timer)
     updateTotalRow(timer, getSnapshot())
     return splitRows.total
 end
@@ -421,72 +437,78 @@ local function modeVisible(mode)
     return true
 end
 
-function timerApi.ConfigureSplitOverlays(config)
+function splits.ConfigureSplitOverlays(config)
     overlayConfig = overlayConfig or {}
     for key, value in pairs(config or {}) do
         overlayConfig[key] = value
     end
 end
 
-function timerApi.RegisterSplitOverlay(overlays)
+function splits.RegisterSplitOverlay(overlays)
     if not overlayConfig then
         return
     end
 
     overlays.createTable("splits", {
         componentName = "SpeedrunTimer_Split",
-        region = timerApi.TimerOverlay.region,
+        region = timerOverlay.region,
         order = overlayConfig.order,
         maxRows = 6,
         columnGap = 20,
-        columns = timerApi.TimerOverlay.buildTimerTableColumns(modeVisible),
+        columns = timerOverlay.buildTimerTableColumns(modeVisible),
         visible = splitVisible,
     })
 end
 
-local function appendRow(rows, key, row)
-    if row.label == nil or row.label == "" then
+local function appendProjectionRow(source, projection)
+    if source.label == nil or source.label == "" then
         return
     end
-    rows[#rows + 1] = {
-        key = key,
-        label = row.label,
-        igt = row.igt,
-        rta = row.rta,
-        lrt = row.lrt,
-    }
+
+    projection.label = source.label
+    projection.igt = source.igt
+    projection.rta = source.rta
+    projection.lrt = source.lrt
+
+    splitProjectionCount = splitProjectionCount + 1
+    splitProjectionRows[splitProjectionCount] = projection
 end
 
-function timerApi.BuildSplitOverlayRows(timer, run, liveOnly)
-    local rows = {}
+local function trimProjectionRows(previousCount)
+    for index = splitProjectionCount + 1, previousCount do
+        splitProjectionRows[index] = nil
+    end
+end
+
+function splits.BuildSplitOverlayRows(timer, run, liveOnly)
+    local previousCount = splitProjectionCount
+    splitProjectionCount = 0
     if not splitVisible() then
-        return rows
+        trimProjectionRows(previousCount)
+        return splitProjectionRows
     end
 
     if liveOnly then
-        timerApi.UpdateLiveSplitDisplayRows(timer, run)
+        splits.UpdateLiveSplitDisplayRows(timer, run)
     else
-        timerApi.UpdateSplitDisplayRows(timer, run)
+        splits.UpdateSplitDisplayRows(timer, run)
     end
 
-    appendRow(rows, "header", splitRows.header)
+    appendProjectionRow(splitRows.header, splitProjectionHeaderRow)
     for index = 1, 4 do
-        appendRow(rows, "biome" .. index, splitRows.biomes[index])
+        appendProjectionRow(splitRows.biomes[index], splitProjectionBiomeRows[index])
     end
-    appendRow(rows, "total", splitRows.total)
-    return rows
+    appendProjectionRow(splitRows.total, splitProjectionTotalRow)
+    trimProjectionRows(previousCount)
+    return splitProjectionRows
 end
 
-function timerApi.RefreshSplitDisplay()
-    if timerApi.RefreshTimerDisplay then
-        timerApi.RefreshTimerDisplay()
-    end
+function splits.RefreshSplitDisplay()
+    refreshDisplay()
 end
 
-function timerApi.RefreshSplitText()
-    if timerApi.RefreshTimerDisplay then
-        timerApi.RefreshTimerDisplay()
-    end
+function splits.RefreshSplitText()
+    refreshDisplay()
 end
 
-return timerApi
+return splits

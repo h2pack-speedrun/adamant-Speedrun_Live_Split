@@ -1,15 +1,17 @@
 -- Real-Time Attack timer. Tracks wall-clock time via socket.gettime().
 
-if GetTime == nil then
+local deps = ...
+local Timer = deps and deps.Timer or import('timer_legacy/core/base_timer.lua')
+local getTime = deps and deps.getTime or GetTime
+
+if getTime == nil then
     local socket = require('socket')
-    GetTime = function(_)
+    getTime = function(_)
         return socket.gettime()
     end
 end
 
-import 'timer/Timer.lua'
-
-RtaTimer = {}
+local RtaTimer = {}
 
 function RtaTimer:new(args)
     args = args or {}
@@ -25,7 +27,7 @@ end
 function RtaTimer:init()
     self.Cycle = 0
     self.PreviousWorldTime = _worldTime
-    self.StartingSystemTime = GetTime({})
+    self.StartingSystemTime = getTime({})
 end
 
 function RtaTimer:start(startingOffset)
@@ -84,5 +86,7 @@ end
 
 function RtaTimer:trueUp()
     self.PreviousWorldTime = _worldTime
-    self.ElapsedTime = GetTime({}) - self.StartingSystemTime
+    self.ElapsedTime = getTime({}) - self.StartingSystemTime
 end
+
+return RtaTimer

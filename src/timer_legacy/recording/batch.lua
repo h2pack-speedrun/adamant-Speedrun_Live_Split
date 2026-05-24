@@ -1,4 +1,20 @@
-local timerApi = ...
+local deps = ... or {}
+local batch = {}
+local timerCore = deps.core
+local timerOverlay = deps.overlay
+local formatTimestamp = deps.formatTimestamp or function(value)
+    return tostring(value or 0)
+end
+local readSetting = deps.readSetting or function()
+    return nil
+end
+local refreshDisplay = deps.refreshDisplay or function() end
+local isRunSuccess = deps.isRunSuccess or function(run)
+    if type(WasRunSuccess) == "function" and run and run.RunResult ~= nil then
+        return WasRunSuccess(run) == true
+    end
+    return run and run.Cleared == true
+end
 
 local MAX_BATCH_RUNS = 10
 
@@ -8,9 +24,14 @@ local batchRows = {
     runs = {},
     current = { label = "", igt = "", rta = "", lrt = "" },
 }
+local batchProjectionRows = {}
+local batchProjectionRunRows = {}
+local batchProjectionCurrentRow = { key = "current", label = "", igt = "", rta = "", lrt = "" }
+local batchProjectionCount = 0
 
 for index = 1, MAX_BATCH_RUNS do
     batchRows.runs[index] = { label = "", igt = "", rta = "", lrt = "" }
+    batchProjectionRunRows[index] = { key = "run" .. index, label = "", igt = "", rta = "", lrt = "" }
 end
 
 local batchState = {
@@ -42,8 +63,8 @@ local BatchTimer = {}
 function BatchTimer:new()
     local o = {}
     o.Running = false
-    o.RtaTimer = RtaTimer:new()
-    o.LrtTimer = LrtTimer:new({ withRtaTimer = o.RtaTimer })
+    o.RtaTimer = timerCore.RtaTimer:new()
+    o.LrtTimer = timerCore.LrtTimer:new({ withRtaTimer = o.RtaTimer })
     setmetatable(o, self)
     self.__index = self
     return o
@@ -115,7 +136,7 @@ local function getCurrentRunLabel()
 end
 
 local function formatTime(value)
-    return timerApi.FormatTimestamp and timerApi.FormatTimestamp(value) or tostring(value or 0)
+    return formatTimestamp(value)
 end
 
 local function toCentiseconds(value)
@@ -147,33 +168,23 @@ local function getBatchLrt()
 end
 
 local function isSuccessRun(run)
-    if not run then
-        return false
-    end
-    if type(WasRunSuccess) == "function" and run.RunResult ~= nil then
-        return WasRunSuccess(run) == true
-    end
-    return run.Cleared == true
+    return isRunSuccess(run) == true
 end
 
 local function readStore(alias)
-    local store = timerApi.store
-    if store and store.read then
-        return store.read(alias)
-    end
-    return nil
+    return readSetting(alias)
 end
 
-function timerApi.IsBatchActive()
+function batch.IsBatchActive()
     return batchState.active == true
 end
 
-function timerApi.IsBatchVisible()
+function batch.IsBatchVisible()
     local modeVisible = not (modeConfig and modeConfig.isVisible) or modeConfig.isVisible() == true
     return modeVisible and (batchState.timer ~= nil or batchState.failed == true or batchState.completedRuns > 0)
 end
 
-function timerApi.GetBatchStatus()
+function batch.GetBatchStatus()
     if batchState.active then
         return {
             kind = "active",
@@ -204,10 +215,8 @@ function timerApi.GetBatchStatus()
     }
 end
 
-local function refreshDisplay()
-    if timerApi.RefreshTimerDisplay then
-        timerApi.RefreshTimerDisplay()
-    end
+local function refreshBatchDisplay()
+    refreshDisplay()
 end
 
 local function stopTimer()
@@ -238,33 +247,33 @@ end
 local function clearBatchDisplay(refresh)
     resetCurrentBatch(true)
     if refresh ~= false then
-        refreshDisplay()
+        refreshBatchDisplay()
     end
 end
 
-function timerApi.StartBatch(targetRuns)
+function batch.StartBatch(targetRuns)
     batchState.ready = true
     batchState.targetRuns = clampTargetRuns(targetRuns)
     clearBatchDisplay(false)
-    refreshDisplay()
+    refreshBatchDisplay()
 end
 
-function timerApi.StopBatch()
+function batch.StopBatch()
     batchState.ready = false
     clearBatchDisplay(true)
 end
 
-function timerApi.ClearBatch(targetRuns, refresh)
+function batch.ClearBatch(targetRuns, refresh)
     if targetRuns ~= nil then
         batchState.targetRuns = clampTargetRuns(targetRuns)
     end
     clearBatchDisplay(false)
     if refresh ~= false then
-        refreshDisplay()
+        refreshBatchDisplay()
     end
 end
 
-function timerApi.StartBatchRun()
+function batch.StartBatchRun()
     if not batchState.ready then
         return
     end
@@ -282,20 +291,20 @@ function timerApi.StartBatchRun()
     batchState.currentRunActive = true
 end
 
-function timerApi.UpdateBatchTimer()
+function batch.UpdateBatchTimer()
     if batchState.active and batchState.timer then
         batchState.timer:update()
     end
 end
 
-function timerApi.ProcessBatchLoadEvent(isLoading)
+function batch.ProcessBatchLoadEvent(isLoading)
     if batchState.active and batchState.timer then
         batchState.timer:processLoadEvent(isLoading)
     end
 end
 
-function timerApi.GetBatchDisplayTime(mode, activeTimer)
-    if not timerApi.IsBatchVisible() then
+function batch.GetBatchDisplayTime(mode, activeTimer)
+    if not batch.IsBatchVisible() then
         return nil
     end
     if mode == "igt" then
@@ -311,7 +320,7 @@ function timerApi.GetBatchDisplayTime(mode, activeTimer)
     return nil
 end
 
-function timerApi.FinalizeBatchRun(activeTimer, run)
+function batch.FinalizeBatchRun(activeTimer, run)
     if not batchState.active then
         return
     end
@@ -344,14 +353,14 @@ function timerApi.FinalizeBatchRun(activeTimer, run)
     finishCurrentBatch()
 end
 
-function timerApi.InitializeBatchState()
+function batch.Initialize()
     batchState.ready = false
     batchState.targetRuns = clampTargetRuns(readStore("BatchTargetRuns"))
     resetCurrentBatch(true)
-    refreshDisplay()
+    refreshBatchDisplay()
 end
 
-function timerApi.UpdateBatchDisplayRows()
+function batch.UpdateBatchDisplayRows()
     for index = 1, MAX_BATCH_RUNS do
         local source = batchState.runRows[index]
         if source then
@@ -368,18 +377,32 @@ function timerApi.UpdateBatchDisplayRows()
     end
 end
 
-function timerApi.GetBatchDisplayRow(index)
-    timerApi.UpdateBatchDisplayRows()
+function batch.GetBatchDisplayRow(index)
+    batch.UpdateBatchDisplayRows()
     return batchRows.runs[index]
 end
 
-function timerApi.GetBatchCurrentDisplayRow()
-    timerApi.UpdateBatchDisplayRows()
+function batch.GetBatchCurrentDisplayRow()
+    batch.UpdateBatchDisplayRows()
     return batchRows.current
 end
 
 local function batchRowVisible(row)
-    return timerApi.IsBatchVisible() and row.label ~= nil and row.label ~= ""
+    return batch.IsBatchVisible() and row.label ~= nil and row.label ~= ""
+end
+
+local function appendProjectionRow(source, projection)
+    if not batchRowVisible(source) then
+        return
+    end
+
+    projection.label = source.label
+    projection.igt = source.igt
+    projection.rta = source.rta
+    projection.lrt = source.lrt
+
+    batchProjectionCount = batchProjectionCount + 1
+    batchProjectionRows[batchProjectionCount] = projection
 end
 
 local function modeVisible(mode)
@@ -389,62 +412,53 @@ local function modeVisible(mode)
     return true
 end
 
-function timerApi.ConfigureBatchOverlays(config)
+function batch.ConfigureBatchOverlays(config)
     overlayConfig = config
 end
 
-function timerApi.ConfigureBatchMode(config)
+function batch.ConfigureBatchMode(config)
     modeConfig = config
 end
 
-function timerApi.RegisterBatchOverlay(overlays)
+function batch.RegisterBatchOverlay(overlays)
     if not overlayConfig then
         return
     end
 
     overlays.createTable("batch", {
         componentName = "SpeedrunTimer_Batch",
-        region = timerApi.TimerOverlay.region,
+        region = timerOverlay.region,
         order = overlayConfig.order,
         maxRows = MAX_BATCH_RUNS + 1,
         columnGap = 20,
-        columns = timerApi.TimerOverlay.buildTimerTableColumns(modeVisible),
+        columns = timerOverlay.buildTimerTableColumns(modeVisible),
         visible = function()
-            return timerApi.IsBatchVisible()
+            return batch.IsBatchVisible()
         end,
     })
 end
 
-function timerApi.BuildBatchOverlayRows()
-    local rows = {}
-    timerApi.UpdateBatchDisplayRows()
-    if not timerApi.IsBatchVisible() then
-        return rows
+function batch.BuildBatchOverlayRows()
+    local previousCount = batchProjectionCount
+    batchProjectionCount = 0
+    batch.UpdateBatchDisplayRows()
+    if not batch.IsBatchVisible() then
+        for index = 1, previousCount do
+            batchProjectionRows[index] = nil
+        end
+        return batchProjectionRows
     end
 
     for index = 1, MAX_BATCH_RUNS do
-        local row = batchRows.runs[index]
-        if batchRowVisible(row) then
-            rows[#rows + 1] = {
-                key = "run" .. index,
-                label = row.label,
-                igt = row.igt,
-                rta = row.rta,
-                lrt = row.lrt,
-            }
-        end
+        appendProjectionRow(batchRows.runs[index], batchProjectionRunRows[index])
     end
 
-    if batchRowVisible(batchRows.current) then
-        rows[#rows + 1] = {
-            key = "current",
-            label = batchRows.current.label,
-            igt = batchRows.current.igt,
-            rta = batchRows.current.rta,
-            lrt = batchRows.current.lrt,
-        }
+    appendProjectionRow(batchRows.current, batchProjectionCurrentRow)
+
+    for index = batchProjectionCount + 1, previousCount do
+        batchProjectionRows[index] = nil
     end
-    return rows
+    return batchProjectionRows
 end
 
-return timerApi
+return batch

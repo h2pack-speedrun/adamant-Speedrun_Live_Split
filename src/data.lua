@@ -38,7 +38,7 @@ function data.buildStorage()
             alias = "BatchTargetRuns",
             default = 3,
             min = 1,
-            max = 15,
+            max = 10,
         },
     }
 end

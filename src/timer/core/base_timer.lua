@@ -1,7 +1,7 @@
 -- Base Timer class. Provides start/stop/reset/pause/resume interface.
 -- Subclasses implement update() and trueUp() based on their timing source.
 
-Timer = {}
+local Timer = {}
 
 function Timer:new(args)
     args = args or {}
@@ -57,3 +57,5 @@ end
 
 function Timer:update() end  --luacheck: ignore 212
 function Timer:trueUp() end  --luacheck: ignore 212
+
+return Timer

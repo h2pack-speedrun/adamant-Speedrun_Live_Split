@@ -1,5 +1,5 @@
 local module = {}
-local logic = nil
+local timer = nil
 
 local TIMER_MODE_OPTIONS = {
     {
@@ -119,7 +119,7 @@ end
 local function drawRecordingControls(draw, state, actions, recordingMode)
     local imgui = draw.imgui
     local recordingAction = actions.get("recording")
-    local status = logic.getRecordingStatus()
+    local status = timer.getRecordingStatus()
     local statusText = status and status.text or "Not recording"
     local statusKind = status and status.kind or "idle"
     draw.widgets.text("Status: " .. statusText, {
@@ -164,7 +164,7 @@ function module.drawTab(draw, state, actions)
         local recordingMode = readRecordingMode(state)
         drawSection(draw, "Recording")
         drawRecordingControls(draw, state, actions, recordingMode)
-        local status = logic.getRecordingStatus()
+        local status = timer.getRecordingStatus()
         if not status or status.kind == "idle" then
             draw.widgets.text(
                 "Split table is enabled, but recording is not started. Press Start Recording to begin tracking runs.",
@@ -179,8 +179,8 @@ function module.drawQuickContent(draw, state)
 
 end
 
-function module.bind(moduleLogic)
-    logic = moduleLogic
+function module.bind(timerApi)
+    timer = timerApi
     return module
 end
 

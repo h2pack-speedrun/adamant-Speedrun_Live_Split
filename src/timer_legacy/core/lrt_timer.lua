@@ -1,9 +1,13 @@
 -- Load-Removed Time timer. LRT = RealTime - LoadTime.
 
-import 'timer/RtaTimer.lua'
-import 'timer/Timer.lua'
+local deps = ...
+local Timer = deps and deps.Timer or import('timer_legacy/core/base_timer.lua')
+local RtaTimer = deps and deps.RtaTimer or import('timer_legacy/core/rta_timer.lua', nil, {
+    Timer = Timer,
+})
+local getTime = deps and deps.getTime or GetTime
 
-LrtTimer = {}
+local LrtTimer = {}
 
 function LrtTimer:new(args)
     args = args or {}
@@ -43,14 +47,14 @@ end
 function LrtTimer:startLoad()
     if self.Loading then return end
     self.Loading = true
-    self.LoadStartSystemTime = GetTime({})
+    self.LoadStartSystemTime = getTime({})
 end
 
 function LrtTimer:stopLoad()
     if not self.Loading then return end
     self.Loading = false
 
-    local now = GetTime({})
+    local now = getTime({})
     local timeThisLoad = now - self.LoadStartSystemTime
     self.LoadTimer:setTime(self.LoadTimer:getTime() + timeThisLoad)
     self.LoadStartSystemTime = nil
@@ -84,3 +88,5 @@ end
 function LrtTimer:getTime()
     return self.RealTimer:getTime() - self.LoadTimer:getTime()
 end
+
+return LrtTimer
