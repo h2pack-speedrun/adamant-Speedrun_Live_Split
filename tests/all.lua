@@ -19,14 +19,14 @@ end
 local function newPersistentCache(backing)
     backing = backing or {}
     return {
-        read = function(alias, fallback)
+        read = function(alias)
             local value = backing[alias]
             if value == nil then
-                return fallback
+                return false
             end
             return value
         end,
-        write = function(alias, value)
+        set = function(alias, value)
             backing[alias] = value
             return true
         end,
@@ -34,47 +34,6 @@ local function newPersistentCache(backing)
             local hadValue = backing[alias] ~= nil
             backing[alias] = nil
             return hadValue
-        end,
-        has = function(alias)
-            return backing[alias] ~= nil
-        end,
-        create = function(alias, opts)
-            opts = opts or {}
-            local fallback = opts.default
-            local snapshot = backing[alias]
-            if snapshot == nil then
-                snapshot = fallback
-            end
-            local ref = {}
-            ref.get = function()
-                return snapshot
-            end
-            ref.set = function(selfOrValue, maybeValue)
-                local value = maybeValue
-                if value == nil and selfOrValue ~= ref then
-                    value = selfOrValue
-                end
-                backing[alias] = value
-                snapshot = value
-                return true
-            end
-            ref.clear = function()
-                local hadValue = backing[alias] ~= nil
-                backing[alias] = nil
-                snapshot = fallback
-                return hadValue
-            end
-            ref.has = function()
-                return backing[alias] ~= nil
-            end
-            ref.refresh = function()
-                snapshot = backing[alias]
-                if snapshot == nil then
-                    snapshot = fallback
-                end
-                return snapshot
-            end
-            return ref
         end,
     }
 end
@@ -513,11 +472,11 @@ local timerInit = withImport(function()
             isEnabled = function()
                 return true
             end,
+        },
+        store = {
             cache = {
                 persistent = newPersistentCache(),
             },
-        },
-        store = {
             read = function(alias)
                 return timerInitStoreValues[alias]
             end,

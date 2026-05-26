@@ -7,9 +7,6 @@ local persistentCache = deps.persistentCache
 
 local recording = {}
 local currentMode = nil
-local recordingReadyRef = persistentCache.create("RecordingReady", {
-    default = false,
-})
 
 local function normalizeMode(mode)
     if mode == "single" or mode == "multi" then
@@ -27,11 +24,11 @@ local function readTargetRuns()
 end
 
 local function isRecordingReady()
-    return recordingReadyRef:get() == true
+    return persistentCache.read("RecordingReady") == true
 end
 
 local function setRecordingReady(value)
-    recordingReadyRef:set(value == true)
+    persistentCache.set("RecordingReady", value == true)
 end
 
 local function clearSingleRecording(keepReady)
@@ -161,7 +158,6 @@ function recording.onRunFinalized(timer, run, snapshot)
 end
 
 function recording.initialize()
-    recordingReadyRef:refresh()
     currentMode = readRecordingMode()
 
     if currentMode == "multi" and isRecordingReady() then

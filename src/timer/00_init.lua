@@ -39,7 +39,7 @@ end
 
 local recordingDeps = deps.recording or {}
 if recordingDeps.persistentCache == nil then
-    recordingDeps.persistentCache = host.cache.persistent
+    recordingDeps.persistentCache = store.cache.persistent
 end
 
 timer.core = deps.core or import('timer/core/00_init.lua', nil, {

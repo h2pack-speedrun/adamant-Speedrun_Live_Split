@@ -44,6 +44,13 @@ local function init()
         name = "Speedrun Timer",
         tooltip = "Displays selected timer modes on screen during runs.",
         storage = data.buildStorage(),
+        cache = {
+            RecordingReady = {
+                domain = "persistent",
+                key = "RecordingReady",
+                default = false,
+            },
+        },
         actions = {
             recording = function() end,
         },
