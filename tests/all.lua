@@ -482,6 +482,15 @@ assertEqual(batchOverlayDeclarations.batch.visible(), true)
 local batchOverlayRows = batchOverlayAdapter.buildRows(nil)
 assertEqual(batchOverlayRows[1].key, "current")
 assertEqual(batchOverlayRows[1].label, "Current 1/2")
+assertEqual(batchOverlayRows[1].igt, "")
+assertEqual(batchOverlayRows[1].rta, "")
+assertEqual(batchOverlayRows[1].lrt, "")
+local batchSession = overlayBatch.session({
+    getInGameTime = function()
+        return 7
+    end,
+})
+assertEqual(batchSession.currentTime.igtCs, 700)
 setTime(10)
 overlayBatch.updateTimer()
 overlayBatch.finalizeRun({
@@ -860,9 +869,9 @@ local boot = harness.bootModule({
         }
     end,
 })
-assert(boot.host and boot.host.setEnabled(true))
-boot.host.drawTab()
-boot.host.drawQuickContent()
+assert(boot.liveModule and boot.liveModule.setEnabled(true))
+boot.liveModule.drawTab()
+boot.liveModule.drawQuickContent()
 
 local consumerHost = boot.lib.createModule({
     pluginGuid = "test-SpeedrunTimerConsumer",

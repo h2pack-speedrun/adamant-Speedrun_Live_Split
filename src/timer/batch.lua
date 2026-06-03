@@ -12,6 +12,7 @@ local rows = {
     completedRuns = 0,
     runs = {},
     current = { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil },
+    currentTime = { igtCs = nil, rtaCs = nil, lrtCs = nil },
 }
 for index = 1, MAX_BATCH_RUNS do
     rows.runs[index] = { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil }
@@ -270,12 +271,14 @@ function batch.updateRows(activeTimer)
     end
 
     if state.active and state.currentRunActive then
-        setRow(rows.current, getCurrentRunLabel(),
+        setRow(rows.current, getCurrentRunLabel(), nil, nil, nil)
+        setRow(rows.currentTime, nil,
             batch.time("igt", activeTimer),
             batch.time("rta"),
             batch.time("lrt"))
     else
         setRow(rows.current, "", nil, nil, nil)
+        setRow(rows.currentTime, nil, nil, nil, nil)
     end
 
     rows.hasSession = batch.hasSession()

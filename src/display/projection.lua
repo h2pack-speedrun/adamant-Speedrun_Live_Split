@@ -23,7 +23,7 @@ end
 
 function projection.displayTime(row, mode)
     local session = projection.batchSession()
-    local batchTime = session.current and session.current[mode .. "Cs"]
+    local batchTime = session.currentTime and session.currentTime[mode .. "Cs"]
     if session.hasSession == true and batchTime ~= nil then
         return formatCache.cell(row, "time", batchTime)
     end
