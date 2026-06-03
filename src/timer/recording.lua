@@ -30,7 +30,7 @@ end
 
 local function setRecordingReady(runtime, value)
     recordingReady = value == true
-    runtime.data.runtimeOwned.set("RecordingReady", recordingReady)
+    runtime.data.runtimeOwned.write("RecordingReady", recordingReady)
 end
 
 local function clearSingleRecording(keepReady)

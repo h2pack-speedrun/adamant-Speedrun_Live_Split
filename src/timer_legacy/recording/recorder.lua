@@ -24,7 +24,7 @@ end
 local function persistRecordingReady()
     local runtimeState = getRuntimeState()
     if runtimeState then
-        runtimeState.set("RecordingReady", recordingReady == true)
+        runtimeState.write("RecordingReady", recordingReady == true)
     end
 end
 

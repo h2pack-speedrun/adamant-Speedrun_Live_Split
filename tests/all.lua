@@ -30,7 +30,7 @@ local function newRuntimeState(backing)
             end
             return value
         end,
-        set = function(first, second, third)
+        write = function(first, second, third)
             local alias = first
             local value = second
             if third ~= nil then
@@ -40,7 +40,7 @@ local function newRuntimeState(backing)
             backing[alias] = value
             return true
         end,
-        clear = function(first, second)
+        reset = function(first, second)
             local alias = aliasFromArgs(first, second)
             local hadValue = backing[alias] ~= nil
             backing[alias] = nil
