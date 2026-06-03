@@ -857,7 +857,7 @@ assertEqual(uiButtons[3], nil)
 
 local harness = dofile("../../Setup/tests/module_entrypoint_harness.lua")
 local boot = harness.bootModule({
-    pluginGuid = "adamant-Speedrun_Live_Split",
+    pluginGuid = "adamant-Speedrun_LiveSplit",
     moduleSrcDir = "src",
     configureEnv = function(env)
         env._worldTime = 0

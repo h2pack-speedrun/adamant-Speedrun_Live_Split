@@ -4,10 +4,10 @@ schemaVersion = "0.0.1"
 
 [package]
 namespace = "adamant"
-name = "Speedrun_Live_Split"
+name = "Speedrun_LiveSplit"
 versionNumber = "1.1.2"
 description = "LiveSplit-style timer and recording tools for the Speedrun modpack."
-websiteUrl = "https://github.com/h2pack-speedrun/adamant-Speedrun_Live_Split"
+websiteUrl = "https://github.com/h2pack-speedrun/adamant-Speedrun_LiveSplit"
 containsNsfwContent = false
 
 [package.dependencies]
