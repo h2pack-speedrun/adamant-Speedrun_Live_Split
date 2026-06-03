@@ -1,152 +1,161 @@
 local deps = ... or {}
-local host = deps.host
-local store = deps.store
 
-local timer = {}
+local timer = {
+    currentRun = {},
+    batch = {},
+    recording = {},
+}
+timer.events = import('timer/events.lua', nil, {
+    source = timer,
+})
 
-local function defaultCurrentRun()
-    return rom and rom.game and rom.game.CurrentRun or CurrentRun
-end
+local defaultGame = {
+    getTime = GetTime,
+    getCurrentRun = function()
+        return rom and rom.game and rom.game.CurrentRun or CurrentRun
+    end,
+    isRunSuccess = function(run)
+        if type(WasRunSuccess) == "function" and run and run.RunResult ~= nil then
+            return WasRunSuccess(run) == true
+        end
+        return run and run.Cleared == true
+    end,
+}
+local game = deps.game or defaultGame
 
-local function defaultRunSuccess(run)
-    if type(WasRunSuccess) == "function" and run and run.RunResult ~= nil then
-        return WasRunSuccess(run) == true
-    end
-    return run and run.Cleared == true
-end
-
-local game = deps.game or {}
-if game.getCurrentRun == nil then
-    game.getCurrentRun = defaultCurrentRun
-end
-if game.isRunSuccess == nil then
-    game.isRunSuccess = defaultRunSuccess
-end
-
-local settings = deps.settings or {}
-if settings.read == nil then
-    settings.read = function(alias)
-        return store.read(alias)
-    end
-end
-
-local module = deps.module or {}
-if module.isEnabled == nil then
-    module.isEnabled = function()
-        return host.isEnabled() == true
-    end
-end
-
-local recordingDeps = deps.recording or {}
-if recordingDeps.persistentCache == nil then
-    recordingDeps.persistentCache = store.cache.persistent
-end
-
-timer.core = deps.core or import('timer/core/00_init.lua', nil, {
+local core = deps.core or import('timer/core/00_init.lua', nil, {
     getTime = game.getTime,
     getCurrentRun = game.getCurrentRun,
 })
-timer.overlay = deps.overlay or import('timer/overlay/00_init.lua')
-timer.display = import('timer/display/00_init.lua', nil, {
-    timer = timer,
-    game = game,
-    settings = settings,
-    module = module,
-})
+local singleRun
+local splits
+local batch
+local recording
+local runLoop
 
-local display = deps.display or timer.display.services
-timer.singleRun = import('timer/single_run/00_init.lua', nil, {
-    core = timer.core,
+singleRun = import('timer/single_run/single_run.lua', nil, {
+    core = core,
     isMultiRunMode = function()
-        return timer.recording.isMultiRunMode()
+        return recording.isMultiRunMode()
     end,
-    overlay = timer.overlay,
-    isModeVisible = display.isModeVisible,
-    isTimerDisplayVisible = display.isTimerDisplayVisible,
-    getDisplayTime = display.getDisplayTime,
 })
-timer.splits = import('timer/splits/00_init.lua', nil, {
-    formatTimestamp = timer.core.formatTimestamp,
+singleRun.installHooks = import('timer/single_run/hooks.lua', nil, singleRun).installHooks
+
+splits = import('timer/splits.lua', nil, {
+    toCentiseconds = core.toCentiseconds,
     isRunSuccess = game.isRunSuccess,
-    overlay = timer.overlay,
-    isVisible = display.isRecordingTableVisible,
-    isModeVisible = display.isModeVisible,
 })
-timer.batch = import('timer/batch/00_init.lua', nil, {
-    core = timer.core,
-    formatTimestamp = timer.core.formatTimestamp,
+batch = import('timer/batch.lua', nil, {
+    core = core,
     isRunSuccess = game.isRunSuccess,
-    overlay = timer.overlay,
-    isVisible = display.isBatchVisible,
-    isModeVisible = display.isModeVisible,
 })
-timer.recording = import('timer/recording/00_init.lua', nil, {
-    splits = timer.splits,
-    batch = timer.batch,
-    readSetting = settings.read,
-    refreshDisplay = display.refreshStructure,
-    persistentCache = recordingDeps.persistentCache,
+recording = import('timer/recording.lua', nil, {
+    splits = splits,
+    batch = batch,
 })
-timer.runLoop = import('timer/run_loop/00_init.lua', nil, {
-    singleRun = timer.singleRun,
-    recording = timer.recording,
-    splits = timer.splits,
-    batch = timer.batch,
-    isEnabled = module.isEnabled,
+runLoop = import('timer/run_loop.lua', nil, {
+    singleRun = singleRun,
+    recording = recording,
+    splits = splits,
+    batch = batch,
     getCurrentRun = game.getCurrentRun,
-    refreshStructure = display.refreshStructure,
-    refreshText = display.refreshText,
-})
-timer.integrations = import('timer/integrations/00_init.lua', nil, {
-    timer = timer,
+    emit = timer.events.emit,
+    events = timer.events.names,
 })
 
-function timer.initialize()
-    timer.recording.initialize()
+function timer.currentRun.summary()
+    return singleRun.getSnapshot()
 end
 
-function timer.registerHooks()
-    timer.runLoop.installHooks(host.hooks)
-end
-
-function timer.registerOverlays()
-    timer.display.registerOverlays(host.overlays)
-end
-
-function timer.registerIntegrations()
-    timer.integrations.register(host.integrations)
-end
-
-function timer.onSettingsCommitted(_, _, commit)
-    if not module.isEnabled() then
-        timer.runLoop.cleanup()
-        return
+function timer.currentRun.detailsSnapshot(liveOnly)
+    local activeTimer = singleRun.getActiveTimer()
+    local run = game.getCurrentRun()
+    local snapshot = singleRun.getSnapshot()
+    if liveOnly then
+        splits.updateLiveRows(activeTimer, run, snapshot)
+    else
+        splits.updateRows(activeTimer, run, snapshot)
     end
-
-    local recordingRef = commit.actions.get("recording")
-    local recordingAction = recordingRef:has() and recordingRef:read() or nil
-    if recordingAction then
-        timer.recording.applyAction(recordingAction)
-    end
-    timer.recording.syncMode()
-    timer.display.refreshStructure()
-    timer.runLoop.ensureDisplayLoop()
+    return splits.details()
 end
 
-function timer.getRealTime()
-    return timer.singleRun.getSnapshot().formatted.rta
+function timer.currentRun.hasSummary()
+    return singleRun.hasSummary()
 end
 
-function timer.getLoadRemovedTime()
-    return timer.singleRun.getSnapshot().formatted.lrt
+function timer.currentRun.hasDetails()
+    return splits.hasDetails()
 end
 
-function timer.getInGameTime()
-    return timer.singleRun.getSnapshot().formatted.igt
+function timer.batch.session()
+    return batch.session(singleRun.getActiveTimer())
 end
 
-function timer.getRecordingStatus()
-    return timer.recording.status()
+function timer.batch.hasSession()
+    return batch.hasSession()
 end
+
+function timer.recording.status()
+    return recording.status()
+end
+
+function timer.recording.isMultiRunMode()
+    return recording.isMultiRunMode()
+end
+
+function timer.recording.start(runtime)
+    local result = recording.start(runtime)
+    timer.events.emitRecordingStarted(runtime, recording.isMultiRunMode())
+    return result
+end
+
+function timer.recording.stop(runtime)
+    local result = recording.stop(runtime)
+    timer.events.emitRecordingOutputsChanged(runtime)
+    return result
+end
+
+function timer.recording.clear(runtime)
+    local result = recording.clear(runtime)
+    timer.events.emitRecordingOutputsChanged(runtime)
+    return result
+end
+
+function timer.recording.syncSettings(runtime)
+    local result = recording.syncMode(runtime)
+    timer.events.emitRecordingOutputsChanged(runtime)
+    return result
+end
+
+function timer.initialize(runtime)
+    recording.initialize(runtime)
+    timer.events.emitRecordingOutputsChanged(runtime)
+end
+
+function timer.installHooks(hooks)
+    runLoop.installHooks(hooks)
+end
+
+function timer.hasActiveDisplayLoop()
+    return runLoop.hasActiveDisplayLoop()
+end
+
+function timer.ensureDisplayLoop()
+    return runLoop.ensureDisplayLoop()
+end
+
+function timer.updateTick(runtime)
+    local updated = runLoop.updateTick()
+    timer.events.emitTick(runtime, recording.isMultiRunMode())
+    return updated
+end
+
+function timer.cleanup(runtime)
+    local result = runLoop.cleanup(runtime)
+    timer.events.emitCleanup(runtime)
+    return result
+end
+
+timer.formatCentiseconds = core.formatCentiseconds
 
 return timer

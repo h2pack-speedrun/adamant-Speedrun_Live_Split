@@ -10,8 +10,8 @@ local function buildModeColumn(mode, modeVisible)
         key = mode,
         minWidth = 78,
         justify = "Left",
-        visible = function()
-            return modeVisible(mode) == true
+        visible = function(_, runtime)
+            return modeVisible(mode, runtime) == true
         end,
         textArgs = {
             Font = VALUE_FONT,

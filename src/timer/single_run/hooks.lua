@@ -2,86 +2,78 @@ local singleRun = ...
 
 local hooksAdapter = {}
 
-local function emit(callbacks, name, ...)
-    return callbacks[name](...)
+local function isEnabled(callbacks, host)
+    return callbacks.isEnabled(host) == true
 end
 
-local function isEnabled(callbacks)
-    return callbacks.isEnabled() == true
-end
-
-local function getCurrentRun(callbacks)
-    return callbacks.getCurrentRun()
-end
-
-local function emitDisplayStarted(callbacks)
-    emit(callbacks, "onDisplayLoopStarted", singleRun.getActiveTimer(), singleRun.getSnapshot())
-    emit(callbacks, "onDisplayChanged", singleRun.getSnapshot())
+local function emitDisplayStarted(callbacks, runtime)
+    callbacks.onDisplayLoopStarted(runtime)
+    callbacks.onDisplayChanged(runtime)
 end
 
 function hooksAdapter.installHooks(hooks, callbacks)
-    hooks.wrap("StartNewRun", function(baseFunc, prevRun, args)
-        if not isEnabled(callbacks) then
+    hooks.wrap("StartNewRun", function(host, runtime, baseFunc, prevRun, args)
+        if not isEnabled(callbacks, host) then
             return baseFunc(prevRun, args)
         end
 
-        local timer = singleRun.beginRun()
+        singleRun.beginRun()
         local run = baseFunc(prevRun, args)
-        emit(callbacks, "onRunStarted", run, timer, singleRun.getSnapshot())
-        emit(callbacks, "onDisplayChanged", singleRun.getSnapshot())
+        callbacks.onRunStarted(runtime)
+        callbacks.onDisplayChanged(runtime)
         return run
     end)
 
-    hooks.wrap("RoomEntranceMaterialize", function(baseFunc, ...)
-        if not isEnabled(callbacks) then
+    hooks.wrap("RoomEntranceMaterialize", function(host, runtime, baseFunc, ...)
+        if not isEnabled(callbacks, host) then
             return baseFunc(...)
         end
 
         local value = baseFunc(...)
         if singleRun.startDisplayLoop() then
-            emitDisplayStarted(callbacks)
+            emitDisplayStarted(callbacks, runtime)
         end
         return value
     end)
 
-    hooks.wrap("RoomEntranceDreamBiomeStart", function(baseFunc, ...)
-        if not isEnabled(callbacks) then
+    hooks.wrap("RoomEntranceDreamBiomeStart", function(host, runtime, baseFunc, ...)
+        if not isEnabled(callbacks, host) then
             return baseFunc(...)
         end
 
         local value = baseFunc(...)
         if singleRun.startDisplayLoop() then
-            emitDisplayStarted(callbacks)
+            emitDisplayStarted(callbacks, runtime)
         end
         return value
     end)
 
-    hooks.wrap("RecordRunStats", function(baseFunc, ...)
-        if not isEnabled(callbacks) then
+    hooks.wrap("RecordRunStats", function(host, runtime, baseFunc, ...)
+        if not isEnabled(callbacks, host) then
             return baseFunc(...)
         end
 
         local value = baseFunc(...)
-        local finalized, timer = singleRun.finalizeRun()
+        local finalized = singleRun.finalizeRun()
         if finalized then
-            emit(callbacks, "onRunFinalized", getCurrentRun(callbacks), timer, singleRun.getSnapshot())
-            emit(callbacks, "onDisplayChanged", singleRun.getSnapshot())
+            callbacks.onRunFinalized(runtime)
+            callbacks.onDisplayChanged(runtime)
         end
         return value
     end)
 
-    hooks.wrap("AddTimerBlock", function(baseFunc, currRun, timerBlockName)
+    hooks.wrap("AddTimerBlock", function(host, runtime, baseFunc, currRun, timerBlockName)
         local value = baseFunc(currRun, timerBlockName)
-        if isEnabled(callbacks) and timerBlockName == "MapLoad" and singleRun.processLoadEvent(true) then
-            emit(callbacks, "onLoadEvent", true, singleRun.getActiveTimer(), singleRun.getSnapshot())
+        if isEnabled(callbacks, host) and timerBlockName == "MapLoad" and singleRun.processLoadEvent(true) then
+            callbacks.onLoadEvent(runtime, true)
         end
         return value
     end)
 
-    hooks.wrap("RemoveTimerBlock", function(baseFunc, currRun, timerBlockName)
+    hooks.wrap("RemoveTimerBlock", function(host, runtime, baseFunc, currRun, timerBlockName)
         local value = baseFunc(currRun, timerBlockName)
-        if isEnabled(callbacks) and timerBlockName == "MapLoad" and singleRun.processLoadEvent(false) then
-            emit(callbacks, "onLoadEvent", false, singleRun.getActiveTimer(), singleRun.getSnapshot())
+        if isEnabled(callbacks, host) and timerBlockName == "MapLoad" and singleRun.processLoadEvent(false) then
+            callbacks.onLoadEvent(runtime, false)
         end
         return value
     end)

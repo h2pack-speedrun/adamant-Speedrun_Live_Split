@@ -1,12 +1,10 @@
 local deps = ... or {}
 local splits = deps.splits
 local batch = deps.batch
-local readSetting = deps.readSetting
-local refreshDisplay = deps.refreshDisplay
-local persistentCache = deps.persistentCache
 
 local recording = {}
 local currentMode = nil
+local recordingReady = false
 
 local function normalizeMode(mode)
     if mode == "single" or mode == "multi" then
@@ -15,20 +13,24 @@ local function normalizeMode(mode)
     return "single"
 end
 
-local function readRecordingMode()
-    return normalizeMode(readSetting("RecordingMode"))
+local function readRecordingMode(runtime)
+    return normalizeMode(runtime.data.read("RecordingMode"))
 end
 
-local function readTargetRuns()
-    return readSetting("BatchTargetRuns")
+local function readTargetRuns(runtime)
+    return runtime.data.read("BatchTargetRuns")
 end
 
-local function isRecordingReady()
-    return persistentCache.read("RecordingReady") == true
+local function isRecordingReady(runtime)
+    if runtime == nil then
+        return recordingReady == true
+    end
+    return runtime.data.runtimeOwned.read("RecordingReady") == true
 end
 
-local function setRecordingReady(value)
-    persistentCache.set("RecordingReady", value == true)
+local function setRecordingReady(runtime, value)
+    recordingReady = value == true
+    runtime.data.runtimeOwned.set("RecordingReady", recordingReady)
 end
 
 local function clearSingleRecording(keepReady)
@@ -59,26 +61,23 @@ function recording.isMultiRunMode()
     return recording.getMode() == "multi"
 end
 
-function recording.syncMode()
+function recording.syncMode(runtime)
     local previousMode = currentMode
-    local nextMode = readRecordingMode()
+    local nextMode = readRecordingMode(runtime)
     currentMode = nextMode
+    recordingReady = isRecordingReady(runtime)
 
     if previousMode and previousMode ~= nextMode then
-        clearSingleRecording(isRecordingReady())
-        clearBatchRecording(readTargetRuns())
-        if nextMode == "multi" and isRecordingReady() then
-            startBatchRecording(readTargetRuns())
+        clearSingleRecording(isRecordingReady(runtime))
+        clearBatchRecording(readTargetRuns(runtime))
+        if nextMode == "multi" and isRecordingReady(runtime) then
+            startBatchRecording(readTargetRuns(runtime))
         end
     end
 
-    if nextMode == "single" and isRecordingReady() and not splits.isStarted() then
+    if nextMode == "single" and isRecordingReady(runtime) and not splits.isStarted() then
         clearSingleRecording(true)
     end
-end
-
-function recording.isSplitOverlayVisible()
-    return splits.isVisible()
 end
 
 function recording.status()
@@ -88,9 +87,10 @@ function recording.status()
     return splits.status()
 end
 
-function recording.start(targetRuns)
-    setRecordingReady(true)
-    currentMode = readRecordingMode()
+function recording.start(runtime)
+    local targetRuns = readTargetRuns(runtime)
+    setRecordingReady(runtime, true)
+    currentMode = readRecordingMode(runtime)
     if recording.isMultiRunMode() then
         clearSingleRecording(true)
         startBatchRecording(targetRuns)
@@ -98,40 +98,18 @@ function recording.start(targetRuns)
         clearBatchRecording(targetRuns)
         clearSingleRecording(true)
     end
-    refreshDisplay()
 end
 
-function recording.clear(targetRuns)
+function recording.clear(runtime)
+    local targetRuns = readTargetRuns(runtime)
     clearBatchRecording(targetRuns)
-    clearSingleRecording(isRecordingReady())
-    refreshDisplay()
+    clearSingleRecording(isRecordingReady(runtime))
 end
 
-function recording.stop()
-    setRecordingReady(false)
+function recording.stop(runtime)
+    setRecordingReady(runtime, false)
     stopBatchRecording()
     clearSingleRecording(false)
-    refreshDisplay()
-end
-
-function recording.applyAction(action)
-    if type(action) ~= "table" then
-        return false
-    end
-
-    if action.kind == "start" then
-        recording.start(readTargetRuns())
-        return true
-    end
-    if action.kind == "clear" then
-        recording.clear(readTargetRuns())
-        return true
-    end
-    if action.kind == "stop" then
-        recording.stop()
-        return true
-    end
-    return false
 end
 
 function recording.onRunStarted(run)
@@ -157,13 +135,13 @@ function recording.onRunFinalized(timer, run, snapshot)
     end
 end
 
-function recording.initialize()
-    currentMode = readRecordingMode()
+function recording.initialize(runtime)
+    currentMode = readRecordingMode(runtime)
 
-    if currentMode == "multi" and isRecordingReady() then
-        startBatchRecording(readTargetRuns())
+    if currentMode == "multi" and isRecordingReady(runtime) then
+        startBatchRecording(readTargetRuns(runtime))
     elseif currentMode == "single" then
-        clearSingleRecording(isRecordingReady())
+        clearSingleRecording(isRecordingReady(runtime))
     end
 end
 

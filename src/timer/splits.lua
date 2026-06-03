@@ -1,5 +1,5 @@
 local deps = ... or {}
-local formatTimestamp = deps.formatTimestamp
+local toCentiseconds = deps.toCentiseconds
 local isRunSuccess = deps.isRunSuccess
 
 local ROUTES = {
@@ -40,16 +40,16 @@ local rows = {
         lrt = "LrT",
     },
     biomes = {
-        { label = "", igt = "", rta = "", lrt = "" },
-        { label = "", igt = "", rta = "", lrt = "" },
-        { label = "", igt = "", rta = "", lrt = "" },
-        { label = "", igt = "", rta = "", lrt = "" },
+        { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil },
+        { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil },
+        { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil },
+        { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil },
     },
     total = {
         label = "Total",
-        igt = "00:00.00",
-        rta = "00:00.00",
-        lrt = "00:00.00",
+        igtCs = 0,
+        rtaCs = 0,
+        lrtCs = 0,
     },
 }
 
@@ -63,9 +63,9 @@ end
 
 local function clearRow(row)
     row.label = ""
-    row.igt = ""
-    row.rta = ""
-    row.lrt = ""
+    row.igtCs = nil
+    row.rtaCs = nil
+    row.lrtCs = nil
 end
 
 local function clearRows()
@@ -77,9 +77,9 @@ local function clearRows()
         clearRow(row)
     end
     rows.total.label = "Total"
-    rows.total.igt = "00:00.00"
-    rows.total.rta = "00:00.00"
-    rows.total.lrt = "00:00.00"
+    rows.total.igtCs = 0
+    rows.total.rtaCs = 0
+    rows.total.lrtCs = 0
 end
 
 local function detectRoute(run)
@@ -100,11 +100,11 @@ local function detectRoute(run)
     return "underworld", cloneRoute(ROUTES.underworld)
 end
 
-local function formatTime(value)
+local function timeCs(value)
     if value == nil then
-        return ""
+        return nil
     end
-    return formatTimestamp(value)
+    return toCentiseconds(value)
 end
 
 local function captureTime(timer, mode)
@@ -125,10 +125,11 @@ end
 
 local function snapshotValue(snapshot, timer, mode)
     snapshot = snapshot or EMPTY_SNAPSHOT
-    if snapshot[mode] ~= nil then
-        return snapshot[mode]
+    local key = mode .. "Cs"
+    if snapshot[key] ~= nil then
+        return snapshot[key]
     end
-    return captureTime(timer, mode)
+    return timeCs(captureTime(timer, mode))
 end
 
 local function getCurrentBiome(run)
@@ -162,42 +163,32 @@ local function getCurrentRouteIndex(run, route)
     return nil, currentBiome
 end
 
-local function setRow(row, label, igt, rta, lrt)
+local function setRow(row, label, igtCs, rtaCs, lrtCs)
     row.label = label or ""
-    row.igt = igt or ""
-    row.rta = rta or ""
-    row.lrt = lrt or ""
+    row.igtCs = igtCs
+    row.rtaCs = rtaCs
+    row.lrtCs = lrtCs
     return row
 end
 
 local function setSnapshotRow(row, label, snapshot, timer)
-    local formatted = snapshot and snapshot.formatted
-    if formatted then
-        return setRow(row, label, formatted.igt, formatted.rta, formatted.lrt)
-    end
-
     return setRow(row, label,
-        formatTime(snapshotValue(snapshot, timer, "igt")),
-        formatTime(snapshotValue(snapshot, timer, "rta")),
-        formatTime(snapshotValue(snapshot, timer, "lrt")))
+        snapshotValue(snapshot, timer, "igt"),
+        snapshotValue(snapshot, timer, "rta"),
+        snapshotValue(snapshot, timer, "lrt"))
 end
 
 local function setCapturedRow(row, label, captured)
-    local formatted = captured and captured.formatted
-    if formatted then
-        return setRow(row, label, formatted.igt, formatted.rta, formatted.lrt)
-    end
-
     return setRow(row, label,
-        formatTime(captured and captured.igt),
-        formatTime(captured and captured.rta),
-        formatTime(captured and captured.lrt))
+        captured and captured.igtCs,
+        captured and captured.rtaCs,
+        captured and captured.lrtCs)
 end
 
 local function updateBiomeRow(row, index, timer, run, route, snapshot)
     local biome = route[index]
     if not biome then
-        return setRow(row, "", "", "", "")
+        return setRow(row, "", nil, nil, nil)
     end
 
     local label = BIOME_LABELS[biome] or biome
@@ -208,7 +199,7 @@ local function updateBiomeRow(row, index, timer, run, route, snapshot)
     if isCurrentBiome(run, route, index, biome) then
         return setSnapshotRow(row, label, snapshot, timer)
     end
-    return setRow(row, label, "", "", "")
+    return setRow(row, label, nil, nil, nil)
 end
 
 function splits.startRun(run)
@@ -248,14 +239,9 @@ function splits.recordCompletedBiomes(timer, run, snapshot)
             local rta = snapshotValue(snapshot, timer, "rta")
             local lrt = snapshotValue(snapshot, timer, "lrt")
             state.captured[biome] = {
-                igt = biomeGameplayTime,
-                rta = rta,
-                lrt = lrt,
-                formatted = {
-                    igt = formatTime(biomeGameplayTime),
-                    rta = formatTime(rta),
-                    lrt = formatTime(lrt),
-                },
+                igtCs = timeCs(biomeGameplayTime),
+                rtaCs = rta,
+                lrtCs = lrt,
             }
             changed = true
         end
@@ -345,7 +331,7 @@ function splits.status()
     }
 end
 
-function splits.isVisible()
+function splits.hasDetails()
     return state.started and (state.active or state.completed or state.failed)
 end
 
@@ -354,6 +340,10 @@ function splits.isStarted()
 end
 
 function splits.rows()
+    return rows
+end
+
+function splits.details()
     return rows
 end
 

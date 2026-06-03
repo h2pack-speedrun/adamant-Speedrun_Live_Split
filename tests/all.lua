@@ -16,21 +16,32 @@ local function currentRun()
     return CurrentRun
 end
 
-local function newPersistentCache(backing)
+local function newRuntimeState(backing)
     backing = backing or {}
+    local function aliasFromArgs(first, second)
+        return second or first
+    end
     return {
-        read = function(alias)
+        read = function(first, second)
+            local alias = aliasFromArgs(first, second)
             local value = backing[alias]
             if value == nil then
                 return false
             end
             return value
         end,
-        set = function(alias, value)
+        set = function(first, second, third)
+            local alias = first
+            local value = second
+            if third ~= nil then
+                alias = second
+                value = third
+            end
             backing[alias] = value
             return true
         end,
-        clear = function(alias)
+        clear = function(first, second)
+            local alias = aliasFromArgs(first, second)
             local hadValue = backing[alias] ~= nil
             backing[alias] = nil
             return hadValue
@@ -59,8 +70,25 @@ local core = withImport(function()
         getCurrentRun = currentRun,
     })
 end)
+local formatCache = assert(loadfile("src/display/format_cache.lua"))({
+    formatCentiseconds = core.formatCentiseconds,
+})
+local formatCallCount = 0
+local countedFormatCache = assert(loadfile("src/display/format_cache.lua"))({
+    formatCentiseconds = function(value)
+        formatCallCount = formatCallCount + 1
+        return core.formatCentiseconds(value)
+    end,
+})
+local countedFormatRow = {}
+assertEqual(countedFormatCache.cell(countedFormatRow, "igt", 1234), "00:12.34")
+assertEqual(countedFormatCache.cell(countedFormatRow, "igt", 1234), "00:12.34")
+assertEqual(formatCallCount, 1)
+assertEqual(countedFormatCache.cell(countedFormatRow, "igt", nil), "")
+assertEqual(countedFormatCache.cell(countedFormatRow, "igt", nil), "")
+assertEqual(formatCallCount, 1)
 local overlay = withImport(function()
-    return assert(loadfile("src/timer/overlay/00_init.lua"))()
+    return assert(loadfile("src/display/overlay_rows.lua"))()
 end)
 
 local singleRun = assert(loadfile("src/timer/single_run/single_run.lua"))({
@@ -74,24 +102,24 @@ _G.CurrentRun = {
     GameplayTime = 0,
 }
 singleRun.beginRun()
-assertEqual(singleRun.getSnapshot().formatted.igt, "00:00.00")
+assertEqual(singleRun.getSnapshot().igtCs, 0)
 assertEqual(singleRun.startDisplayLoop(), true)
 setTime(12.34)
 _G.CurrentRun.GameplayTime = 10.5
 singleRun.updateTick()
-assertEqual(singleRun.getSnapshot().formatted.rta, "00:12.34")
-assertEqual(singleRun.getSnapshot().formatted.igt, "00:10.50")
+assertEqual(singleRun.getSnapshot().rtaCs, 1234)
+assertEqual(singleRun.getSnapshot().igtCs, 1050)
 singleRun.processLoadEvent(true)
 setTime(14.34)
 singleRun.processLoadEvent(false)
 singleRun.updateTick()
-assertEqual(singleRun.getSnapshot().formatted.lrt, "00:12.34")
+assertEqual(singleRun.getSnapshot().lrtCs, 1234)
 local finalized, finalizedTimer = singleRun.finalizeRun()
 assertEqual(finalized, true)
 assert(finalizedTimer ~= nil, "expected finalized timer")
-assertEqual(singleRun.hasCurrentRunDisplay(), true)
+assertEqual(singleRun.hasSummary(), true)
 singleRun.clear()
-assertEqual(singleRun.hasCurrentRunDisplay(), false)
+assertEqual(singleRun.hasSummary(), false)
 setTime(0)
 _G.CurrentRun = nil
 
@@ -102,6 +130,12 @@ local hookSingleRun = assert(loadfile("src/timer/single_run/single_run.lua"))({
     end,
 })
 local hookAdapter = assert(loadfile("src/timer/single_run/hooks.lua"))(hookSingleRun)
+local hookHost = {
+    isEnabled = function()
+        return true
+    end,
+}
+local hookRuntime = {}
 local hookCallbacks = {}
 local hookEvents = {}
 hookAdapter.installHooks({
@@ -112,25 +146,22 @@ hookAdapter.installHooks({
     isEnabled = function()
         return true
     end,
-    getCurrentRun = function()
-        return CurrentRun
-    end,
-    onRunStarted = function(run, timer)
+    onRunStarted = function()
         hookEvents[#hookEvents + 1] = "started"
-        hookEvents.startedRun = run
-        hookEvents.startedTimer = timer
+        hookEvents.startedRun = CurrentRun
+        hookEvents.startedTimer = hookSingleRun.getActiveTimer()
     end,
-    onDisplayLoopStarted = function(timer)
+    onDisplayLoopStarted = function()
         hookEvents[#hookEvents + 1] = "display"
-        hookEvents.displayTimer = timer
+        hookEvents.displayTimer = hookSingleRun.getActiveTimer()
     end,
-    onLoadEvent = function(isLoading)
+    onLoadEvent = function(_, isLoading)
         hookEvents[#hookEvents + 1] = isLoading and "loadStart" or "loadStop"
     end,
-    onRunFinalized = function(run, timer)
+    onRunFinalized = function()
         hookEvents[#hookEvents + 1] = "finalized"
-        hookEvents.finalizedRun = run
-        hookEvents.finalizedTimer = timer
+        hookEvents.finalizedRun = CurrentRun
+        hookEvents.finalizedTimer = hookSingleRun.getActiveTimer()
     end,
     onDisplayChanged = function()
         hookEvents[#hookEvents + 1] = "changed"
@@ -146,24 +177,24 @@ setTime(0)
 _G.CurrentRun = {
     GameplayTime = 0,
 }
-local startedRun = hookCallbacks.StartNewRun(function()
+local startedRun = hookCallbacks.StartNewRun(hookHost, hookRuntime, function()
     return CurrentRun
 end)
 assertEqual(startedRun, CurrentRun)
 assertEqual(hookEvents[1], "started")
 assert(hookEvents.startedTimer ~= nil, "expected started timer")
-hookCallbacks.RoomEntranceMaterialize(function()
+hookCallbacks.RoomEntranceMaterialize(hookHost, hookRuntime, function()
     return "entered"
 end)
 assertEqual(hookEvents[3], "display")
-hookCallbacks.AddTimerBlock(function()
+hookCallbacks.AddTimerBlock(hookHost, hookRuntime, function()
     return true
 end, CurrentRun, "MapLoad")
 setTime(3)
-hookCallbacks.RemoveTimerBlock(function()
+hookCallbacks.RemoveTimerBlock(hookHost, hookRuntime, function()
     return true
 end, CurrentRun, "MapLoad")
-hookCallbacks.RecordRunStats(function()
+hookCallbacks.RecordRunStats(hookHost, hookRuntime, function()
     return "stats"
 end)
 assertEqual(hookEvents[#hookEvents - 1], "finalized")
@@ -175,17 +206,17 @@ _G.CurrentRun = nil
 local overlaySingleRun = assert(loadfile("src/timer/single_run/single_run.lua"))({
     core = core,
 })
-local overlaySingleRunAdapter = assert(loadfile("src/timer/single_run/overlay.lua"))({
+local overlaySingleRunAdapter = assert(loadfile("src/display/overlay_single_run.lua"))({
     singleRun = overlaySingleRun,
     overlay = overlay,
     isModeVisible = function(mode)
         return mode ~= "rta"
     end,
     isTimerDisplayVisible = function()
-        return overlaySingleRun.hasCurrentRunDisplay()
+        return overlaySingleRun.hasSummary()
     end,
-    getDisplayTime = function(mode)
-        return overlaySingleRun.getSnapshot().formatted[mode]
+    getDisplayTime = function(row, mode)
+        return formatCache.cell(row, "time", overlaySingleRun.getSnapshot()[mode .. "Cs"])
     end,
 })
 local singleRunOverlayDeclarations = {}
@@ -216,12 +247,12 @@ overlaySingleRunAdapter.project({
     end,
 })
 assertEqual(projectedSingleRunLines["summary.igt"].time, "00:08.76")
-assertEqual(projectedSingleRunLines["summary.rta"].time, "00:09.87")
+assertEqual(projectedSingleRunLines["summary.rta"].time, "")
 setTime(0)
 _G.CurrentRun = nil
 
-local timerSplits = assert(loadfile("src/timer/splits/splits.lua"))({
-    formatTimestamp = core.formatTimestamp,
+local timerSplits = assert(loadfile("src/timer/splits.lua"))({
+    toCentiseconds = core.toCentiseconds,
     isRunSuccess = function(run)
         return run and run.Cleared == true
     end,
@@ -239,14 +270,9 @@ local splitTimer = {
     end,
 }
 local splitSnapshot = {
-    igt = 12.34,
-    rta = 13.45,
-    lrt = 12.89,
-    formatted = {
-        igt = "00:12.34",
-        rta = "00:13.45",
-        lrt = "00:12.89",
-    },
+    igtCs = 1234,
+    rtaCs = 1345,
+    lrtCs = 1289,
 }
 timerSplits.startRun({
     CurrentRoom = { RoomSetName = "F" },
@@ -262,7 +288,7 @@ assertEqual(timerSplits.row(1, splitTimer, {
 assertEqual(timerSplits.row(1, splitTimer, {
     CurrentRoom = { RoomSetName = "F" },
     EnteredBiomes = 1,
-}, splitSnapshot).igt, "00:12.34")
+}, splitSnapshot).igtCs, 1234)
 timerSplits.startRun({
     CurrentRoom = { RoomSetName = "N" },
 })
@@ -288,7 +314,7 @@ local completedSplitRow = timerSplits.row(1, splitTimer, {
     EnteredBiomes = 2,
 }, splitSnapshot)
 assertEqual(completedSplitRow.label, "Erebus")
-assertEqual(completedSplitRow.igt, "01:05.43")
+assertEqual(completedSplitRow.igtCs, 6543)
 timerSplits.finalizeRun(splitTimer, {
     Cleared = true,
     BiomeVisitOrder = { "F" },
@@ -297,18 +323,34 @@ timerSplits.finalizeRun(splitTimer, {
     },
 }, splitSnapshot)
 assertEqual(timerSplits.status().kind, "recorded")
-assertEqual(timerSplits.isVisible(), true)
+assertEqual(timerSplits.hasDetails(), true)
 timerSplits.clear(false)
 assertEqual(timerSplits.status().kind, "idle")
 
-local overlaySplits = assert(loadfile("src/timer/splits/splits.lua"))({
-    formatTimestamp = core.formatTimestamp,
+local overlaySplits = assert(loadfile("src/timer/splits.lua"))({
+    toCentiseconds = core.toCentiseconds,
     isRunSuccess = function(run)
         return run and run.Cleared == true
     end,
 })
-local splitsOverlayAdapter = assert(loadfile("src/timer/splits/overlay.lua"))({
-    splits = overlaySplits,
+local splitsOverlayAdapter = assert(loadfile("src/display/overlay_splits.lua"))({
+    currentRun = {
+        hasDetails = overlaySplits.hasDetails,
+        detailsSnapshot = function(liveOnly)
+            if liveOnly then
+                overlaySplits.updateLiveRows(splitTimer, {
+                    CurrentRoom = { RoomSetName = "F" },
+                    EnteredBiomes = 1,
+                }, splitSnapshot)
+            else
+                overlaySplits.updateRows(splitTimer, {
+                    CurrentRoom = { RoomSetName = "F" },
+                    EnteredBiomes = 1,
+                }, splitSnapshot)
+            end
+            return overlaySplits.details()
+        end,
+    },
     overlay = overlay,
     isVisible = function()
         return true
@@ -316,6 +358,7 @@ local splitsOverlayAdapter = assert(loadfile("src/timer/splits/overlay.lua"))({
     isModeVisible = function(mode)
         return mode ~= "lrt"
     end,
+    formatCache = formatCache,
 })
 local splitOverlayDeclarations = {}
 splitsOverlayAdapter.register({
@@ -330,10 +373,7 @@ overlaySplits.clear(true)
 overlaySplits.startRun({
     CurrentRoom = { RoomSetName = "F" },
 })
-local splitOverlayRows = splitsOverlayAdapter.buildRows(splitTimer, {
-    CurrentRoom = { RoomSetName = "F" },
-    EnteredBiomes = 1,
-}, splitSnapshot, false)
+local splitOverlayRows = splitsOverlayAdapter.buildRows(nil, false)
 assertEqual(splitOverlayDeclarations.splits.visible(), true)
 assertEqual(splitOverlayRows[1].key, "header")
 assertEqual(splitOverlayRows[2].label, "Erebus")
@@ -343,15 +383,11 @@ splitsOverlayAdapter.project({
     setTable = function(name, rows)
         projectedSplitTables[name] = rows
     end,
-}, splitTimer, {
-    CurrentRoom = { RoomSetName = "F" },
-    EnteredBiomes = 1,
-}, splitSnapshot, true)
+}, nil, true)
 assertEqual(projectedSplitTables.splits[2].label, "Erebus")
 
-local timerBatch = assert(loadfile("src/timer/batch/batch.lua"))({
+local timerBatch = assert(loadfile("src/timer/batch.lua"))({
     core = core,
-    formatTimestamp = core.formatTimestamp,
     isRunSuccess = function(run)
         return run and run.Cleared == true
     end,
@@ -359,7 +395,7 @@ local timerBatch = assert(loadfile("src/timer/batch/batch.lua"))({
 timerBatch.start(2)
 assertEqual(timerBatch.status().kind, "ready")
 assertEqual(timerBatch.status().text, "Recording ready for 2 runs")
-assertEqual(timerBatch.displayTime("rta"), nil)
+assertEqual(timerBatch.time("rta"), nil)
 assertEqual(timerBatch.startRun(), true)
 assertEqual(timerBatch.status().kind, "active")
 assertEqual(timerBatch.currentRow().label, "Current 1/2")
@@ -373,8 +409,8 @@ timerBatch.finalizeRun({
     Cleared = true,
 })
 assertEqual(timerBatch.status().text, "Recording 1 / 2")
-assertEqual(timerBatch.displayTime("igt"), "01:20.00")
-assertEqual(timerBatch.displayTime("rta"), "01:40.00")
+assertEqual(timerBatch.time("igt"), 8000)
+assertEqual(timerBatch.time("rta"), 10000)
 assertEqual(timerBatch.row(1).label, "Run 1/2")
 assertEqual(timerBatch.currentRow().label, "")
 assertEqual(timerBatch.startRun(), true)
@@ -390,7 +426,7 @@ timerBatch.finalizeRun({
 })
 assertEqual(timerBatch.status().kind, "recorded")
 assertEqual(timerBatch.status().text, "Recorded 2 / 2")
-assertEqual(timerBatch.displayTime("igt"), "02:30.00")
+assertEqual(timerBatch.time("igt"), 15000)
 assertEqual(timerBatch.row(2).label, "Run 2/2")
 assertEqual(timerBatch.currentRow().label, "")
 
@@ -408,18 +444,20 @@ timerBatch.finalizeRun({
 assertEqual(timerBatch.status().kind, "failed")
 assertEqual(timerBatch.status().text, "Failed (0 / 3 complete)")
 assertEqual(timerBatch.row(1).label, "Failed")
-assertEqual(timerBatch.row(1).igt, "00:09.00")
-assertEqual(timerBatch.displayTime("igt"), "00:00.00")
+assertEqual(timerBatch.row(1).igtCs, 900)
+assertEqual(timerBatch.time("igt"), 0)
 setTime(0)
-local overlayBatch = assert(loadfile("src/timer/batch/batch.lua"))({
+local overlayBatch = assert(loadfile("src/timer/batch.lua"))({
     core = core,
-    formatTimestamp = core.formatTimestamp,
     isRunSuccess = function(run)
         return run and run.Cleared == true
     end,
 })
-local batchOverlayAdapter = assert(loadfile("src/timer/batch/overlay.lua"))({
-    batch = overlayBatch,
+local batchOverlayAdapter = assert(loadfile("src/display/overlay_batch.lua"))({
+    batch = {
+        hasSession = overlayBatch.hasSession,
+        session = overlayBatch.session,
+    },
     overlay = overlay,
     isVisible = function()
         return true
@@ -427,6 +465,7 @@ local batchOverlayAdapter = assert(loadfile("src/timer/batch/overlay.lua"))({
     isModeVisible = function(mode)
         return mode ~= "rta"
     end,
+    formatCache = formatCache,
 })
 local batchOverlayDeclarations = {}
 batchOverlayAdapter.register({
@@ -440,7 +479,7 @@ assertEqual(batchOverlayDeclarations.batch.visible(), false)
 overlayBatch.start(2)
 overlayBatch.startRun()
 assertEqual(batchOverlayDeclarations.batch.visible(), true)
-local batchOverlayRows = batchOverlayAdapter.buildRows()
+local batchOverlayRows = batchOverlayAdapter.buildRows(nil)
 assertEqual(batchOverlayRows[1].key, "current")
 assertEqual(batchOverlayRows[1].label, "Current 1/2")
 setTime(10)
@@ -466,21 +505,17 @@ local timerInitStoreValues = {
     ShowIGT = false,
     ShowRawTimers = false,
 }
+local timerInitRuntimeContext = {
+    data = {
+        read = function(alias)
+            return timerInitStoreValues[alias]
+        end,
+        runtimeOwned = newRuntimeState(),
+    },
+}
 local timerInit = withImport(function()
     return assert(loadfile("src/timer/00_init.lua"))({
-        host = {
-            isEnabled = function()
-                return true
-            end,
-        },
-        store = {
-            cache = {
-                persistent = newPersistentCache(),
-            },
-            read = function(alias)
-                return timerInitStoreValues[alias]
-            end,
-        },
+        runtime = timerInitRuntimeContext,
         game = {
             getTime = function()
                 return fakeTime
@@ -489,50 +524,50 @@ local timerInit = withImport(function()
         },
     })
 end)
-assert(timerInit.core.RtaTimer ~= nil, "expected timer core timers")
-assert(timerInit.overlay.buildSummaryColumns ~= nil, "expected timer overlay helpers")
-assert(timerInit.singleRun.overlay ~= nil, "expected timer single-run overlay")
-assert(timerInit.splits.overlay ~= nil, "expected timer splits overlay")
-assert(timerInit.batch.overlay ~= nil, "expected timer batch overlay")
-assert(timerInit.recording ~= nil, "expected timer recording")
-assert(timerInit.runLoop ~= nil, "expected timer run loop")
-assertEqual(timerInit.display.services.isModeVisible("igt"), false)
-assertEqual(timerInit.display.services.isRawTimerRowsEnabled(), false)
+local timerInitDisplay = withImport(function()
+    return assert(loadfile("src/display/display.lua"))({
+        timer = timerInit,
+    })
+end)
+assert(type(timerInit.currentRun.summary) == "function", "expected timer current-run summary")
+assert(type(timerInit.currentRun.detailsSnapshot) == "function", "expected timer current-run details snapshot")
+assert(type(timerInit.batch.session) == "function", "expected timer batch session")
+assert(type(timerInit.recording.status) == "function", "expected timer recording status")
+assertEqual(timerInitDisplay.settings.isModeVisible("igt", timerInitRuntimeContext), false)
+assertEqual(timerInitDisplay.settings.isRawTimerRowsEnabled(timerInitRuntimeContext), false)
 
 local recordingSettings = {
     RecordingMode = "single",
     BatchTargetRuns = 2,
 }
 local recordingCache = {}
-local recordingSplits = assert(loadfile("src/timer/splits/splits.lua"))({
-    formatTimestamp = core.formatTimestamp,
+local recordingRuntime = {
+    data = {
+        read = function(alias)
+            return recordingSettings[alias]
+        end,
+        runtimeOwned = newRuntimeState(recordingCache),
+    },
+}
+local recordingSplits = assert(loadfile("src/timer/splits.lua"))({
+    toCentiseconds = core.toCentiseconds,
     isRunSuccess = function(run)
         return run and run.Cleared == true
     end,
 })
-local recordingBatch = assert(loadfile("src/timer/batch/batch.lua"))({
+local recordingBatch = assert(loadfile("src/timer/batch.lua"))({
     core = core,
-    formatTimestamp = core.formatTimestamp,
     isRunSuccess = function(run)
         return run and run.Cleared == true
     end,
 })
-local recordingRefreshCount = 0
-local recording = assert(loadfile("src/timer/recording/recording.lua"))({
+local recording = assert(loadfile("src/timer/recording.lua"))({
     splits = recordingSplits,
     batch = recordingBatch,
-    readSetting = function(alias)
-        return recordingSettings[alias]
-    end,
-    refreshDisplay = function()
-        recordingRefreshCount = recordingRefreshCount + 1
-    end,
-    persistentCache = newPersistentCache(recordingCache),
 })
-recording.initialize()
+recording.initialize(recordingRuntime)
 assertEqual(recording.status().kind, "idle")
-recording.start(2)
-assertEqual(recordingRefreshCount, 1)
+recording.start(recordingRuntime)
 assertEqual(recordingCache.RecordingReady, true)
 assertEqual(recording.status().kind, "ready")
 recording.onRunStarted({
@@ -549,7 +584,7 @@ recording.onRunFinalized(splitTimer, {
 assertEqual(recording.status().kind, "recorded")
 
 recordingSettings.RecordingMode = "multi"
-recording.syncMode()
+recording.syncMode(recordingRuntime)
 assertEqual(recording.status().kind, "ready")
 recording.onRunStarted({
     CurrentRoom = { RoomSetName = "F" },
@@ -565,8 +600,8 @@ recording.onRunFinalized({
     Cleared = true,
 })
 assertEqual(recording.status().text, "Recording 1 / 2")
-assertEqual(recordingBatch.row(1).igt, "00:15.00")
-recording.applyAction({ kind = "stop" })
+assertEqual(recordingBatch.row(1).igtCs, 1500)
+recording.stop(recordingRuntime)
 assertEqual(recordingCache.RecordingReady, false)
 assertEqual(recording.status().kind, "idle")
 setTime(0)
@@ -574,15 +609,14 @@ local bridgeSettings = {
     RecordingMode = "single",
     BatchTargetRuns = 2,
 }
-local bridgeSplits = assert(loadfile("src/timer/splits/splits.lua"))({
-    formatTimestamp = core.formatTimestamp,
+local bridgeSplits = assert(loadfile("src/timer/splits.lua"))({
+    toCentiseconds = core.toCentiseconds,
     isRunSuccess = function(run)
         return run and run.Cleared == true
     end,
 })
-local bridgeBatch = assert(loadfile("src/timer/batch/batch.lua"))({
+local bridgeBatch = assert(loadfile("src/timer/batch.lua"))({
     core = core,
-    formatTimestamp = core.formatTimestamp,
     isRunSuccess = function(run)
         return run and run.Cleared == true
     end,
@@ -595,36 +629,48 @@ local bridgeSingleRun = assert(loadfile("src/timer/single_run/single_run.lua"))(
     end,
 })
 bridgeSingleRun.installHooks = assert(loadfile("src/timer/single_run/hooks.lua"))(bridgeSingleRun).installHooks
-local bridgeRefresh = {
-    structure = 0,
-    text = 0,
+local bridgeEvents = {}
+local bridgeEventNames = {
+    currentRunSummaryChanged = "currentRunSummaryChanged",
+    currentRunDetailsChanged = "currentRunDetailsChanged",
+    batchSessionChanged = "batchSessionChanged",
+    recordingStatusChanged = "recordingStatusChanged",
+    currentRunStarted = "currentRunStarted",
+    currentRunFinalized = "currentRunFinalized",
+    currentRunDisplayStarted = "currentRunDisplayStarted",
+    loadRemovalStarted = "loadRemovalStarted",
+    loadRemovalEnded = "loadRemovalEnded",
 }
-bridgeRecording = assert(loadfile("src/timer/recording/recording.lua"))({
+local function emitBridgeEvent(name)
+    bridgeEvents[name] = (bridgeEvents[name] or 0) + 1
+end
+local bridgeHost = {
+    isEnabled = function()
+        return true
+    end,
+}
+local bridgeRuntime = {
+    data = {
+        read = function(alias)
+            return bridgeSettings[alias]
+        end,
+        runtimeOwned = newRuntimeState(),
+    },
+}
+bridgeRecording = assert(loadfile("src/timer/recording.lua"))({
     splits = bridgeSplits,
     batch = bridgeBatch,
-    readSetting = function(alias)
-        return bridgeSettings[alias]
-    end,
-    refreshDisplay = function() end,
-    persistentCache = newPersistentCache(),
 })
-local runLoop = assert(loadfile("src/timer/run_loop/run_loop.lua"))({
+local runLoop = assert(loadfile("src/timer/run_loop.lua"))({
     singleRun = bridgeSingleRun,
     recording = bridgeRecording,
     splits = bridgeSplits,
     batch = bridgeBatch,
-    isEnabled = function()
-        return true
-    end,
     getCurrentRun = function()
         return CurrentRun
     end,
-    refreshStructure = function()
-        bridgeRefresh.structure = bridgeRefresh.structure + 1
-    end,
-    refreshText = function()
-        bridgeRefresh.text = bridgeRefresh.text + 1
-    end,
+    emit = emitBridgeEvent,
+    events = bridgeEventNames,
 })
 local bridgeHooks = {}
 runLoop.installHooks({
@@ -632,7 +678,7 @@ runLoop.installHooks({
         bridgeHooks[name] = callback
     end,
 })
-bridgeRecording.start(2)
+bridgeRecording.start(bridgeRuntime)
 setTime(0)
 _G.CurrentRun = {
     GameplayTime = 0,
@@ -644,29 +690,30 @@ _G.CurrentRun = {
         F = 6,
     },
 }
-bridgeHooks.StartNewRun(function()
+bridgeHooks.StartNewRun(bridgeHost, bridgeRuntime, function()
     return CurrentRun
 end)
 assertEqual(bridgeRecording.status().kind, "active")
 assertEqual(runLoop.ensureDisplayLoop(), true)
-assertEqual(bridgeSingleRun.hasCurrentRunDisplay(), true)
-bridgeHooks.RoomEntranceMaterialize(function()
+assertEqual(bridgeSingleRun.hasSummary(), true)
+bridgeHooks.RoomEntranceMaterialize(bridgeHost, bridgeRuntime, function()
     return true
 end)
 setTime(7)
 _G.CurrentRun.GameplayTime = 6
 runLoop.updateTick()
 local bridgeSplitRow = bridgeSplits.row(1, bridgeSingleRun.getActiveTimer(), CurrentRun, bridgeSingleRun.getSnapshot())
-assertEqual(bridgeSplitRow.igt, "00:06.00")
-bridgeHooks.RecordRunStats(function()
+assertEqual(bridgeSplitRow.igtCs, 600)
+bridgeHooks.RecordRunStats(bridgeHost, bridgeRuntime, function()
     return true
 end)
 assertEqual(bridgeRecording.status().kind, "recorded")
-assert(bridgeRefresh.structure > 0, "expected bridge structure refresh")
-assert(bridgeRefresh.text > 0, "expected bridge text refresh")
+assert((bridgeEvents.currentRunStarted or 0) > 0, "expected currentRunStarted event")
+assert((bridgeEvents.currentRunSummaryChanged or 0) > 0, "expected currentRunSummaryChanged event")
+assert((bridgeEvents.currentRunDetailsChanged or 0) > 0, "expected currentRunDetailsChanged event")
 
 bridgeSettings.RecordingMode = "multi"
-bridgeRecording.syncMode()
+bridgeRecording.syncMode(bridgeRuntime)
 setTime(0)
 local bridgeMultiRun = {
     GameplayTime = 0,
@@ -674,21 +721,21 @@ local bridgeMultiRun = {
     EnteredBiomes = 1,
 }
 _G.CurrentRun = bridgeMultiRun
-bridgeHooks.StartNewRun(function()
+bridgeHooks.StartNewRun(bridgeHost, bridgeRuntime, function()
     return CurrentRun
 end)
-bridgeHooks.RoomEntranceMaterialize(function()
+bridgeHooks.RoomEntranceMaterialize(bridgeHost, bridgeRuntime, function()
     return true
 end)
 setTime(9)
 _G.CurrentRun.GameplayTime = 5
 runLoop.updateTick()
-bridgeHooks.RecordRunStats(function()
+bridgeHooks.RecordRunStats(bridgeHost, bridgeRuntime, function()
     bridgeMultiRun.Cleared = true
     return true
 end)
 assertEqual(bridgeRecording.status().text, "Recording 1 / 2")
-assertEqual(bridgeBatch.row(1).igt, "00:05.00")
+assertEqual(bridgeBatch.row(1).igtCs, 500)
 setTime(0)
 _G.CurrentRun = nil
 
@@ -707,11 +754,12 @@ local uiStatus = {
     kind = "idle",
     text = "Not recording",
 }
-local uiModule = dofile("src/ui.lua").bind({
+local uiModule = dofile("src/ui.lua")
+local uiStatusView = {
     getRecordingStatus = function()
         return uiStatus
     end,
-})
+}
 
 local uiSessionValues = {
     ShowIGT = false,
@@ -766,9 +814,9 @@ local uiActions = {
 uiModule.drawTab({
     imgui = uiDraw.imgui,
     widgets = uiDraw.widgets,
-}, drawState, uiActions)
+}, drawState, uiActions, uiStatusView)
 assertEqual(uiSessionValues.ShowIGT, true)
-assertEqual(uiSessionActions.recording.kind, "start")
+assertEqual(uiSessionActions.recordingStart, true)
 assertEqual(uiButtons[1], "Start")
 assertEqual(uiButtons[2], nil)
 
@@ -777,8 +825,8 @@ uiButtons = {}
 uiModule.drawQuickContent({
     imgui = uiDraw.imgui,
     widgets = uiDraw.widgets,
-}, drawState, uiActions)
-assertEqual(uiSessionActions.recording.kind, "start")
+}, drawState, uiActions, uiStatusView)
+assertEqual(uiSessionActions.recordingStart, true)
 assertEqual(uiButtons[1], "Start")
 assertEqual(uiButtons[2], nil)
 
@@ -791,8 +839,9 @@ uiButtons = {}
 uiModule.drawQuickContent({
     imgui = uiDraw.imgui,
     widgets = uiDraw.widgets,
-}, drawState, uiActions)
-assertEqual(uiSessionActions.recording.kind, "clear")
+}, drawState, uiActions, uiStatusView)
+assertEqual(uiSessionActions.recordingStop, true)
+assertEqual(uiSessionActions.recordingClear, true)
 assertEqual(uiButtons[1], "Stop")
 assertEqual(uiButtons[2], "Clear")
 assertEqual(uiButtons[3], nil)
@@ -820,17 +869,27 @@ local consumerHost = boot.lib.createModule({
     config = {},
     id = "TimerConsumer",
     name = "Timer Consumer",
-    drawTab = function() end,
 })
+consumerHost.ui.tab(function() end)
+consumerHost.shared.data.reader("TimerSnapshot", {
+    id = "speedrun.timer",
+    fallback = {
+        realTimeCs = -1,
+        loadRemovedTimeCs = -1,
+        inGameTimeCs = -1,
+    },
+})
+local consumerRuntime = nil
+consumerHost.onActivate(function(_, runtime)
+    consumerRuntime = runtime
+end)
 assert(consumerHost and consumerHost.activate())
 
-assertEqual(consumerHost.integrations.poll("speedrun.timer", "getRealTime", "missing"), "00:00.00")
-assertEqual(consumerHost.integrations.poll("speedrun.timer", "getLoadRemovedTime", "missing"), "00:00.00")
-assertEqual(consumerHost.integrations.poll("speedrun.timer", "getInGameTime", "missing"), "00:00.00")
-local times = consumerHost.integrations.poll("speedrun.timer", "getTimes", nil)
-assertEqual(times.realTime, "00:00.00")
-assertEqual(times.loadRemovedTime, "00:00.00")
-assertEqual(times.inGameTime, "00:00.00")
+local times = consumerRuntime.shared.read("TimerSnapshot")
+assertEqual(times.realTimeCs, 0)
+assertEqual(times.loadRemovedTimeCs, 0)
+assertEqual(times.inGameTimeCs, 0)
+assertEqual(times.recordingStatus.kind, "idle")
 assertEqual(next(boot.moduleEnv.public), nil)
 
 print("Timer tests passed")

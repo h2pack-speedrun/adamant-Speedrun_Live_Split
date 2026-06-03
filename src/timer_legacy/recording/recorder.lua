@@ -17,10 +17,14 @@ local function refreshDisplay()
     end
 end
 
+local function getRuntimeState()
+    return timerApi.store and timerApi.store.runtime or nil
+end
+
 local function persistRecordingReady()
-    local cache = timerApi.host and timerApi.host.cache and timerApi.host.cache.persistent or nil
-    if cache then
-        cache.write("RecordingReady", recordingReady == true)
+    local runtimeState = getRuntimeState()
+    if runtimeState then
+        runtimeState.set("RecordingReady", recordingReady == true)
     end
 end
 
@@ -194,8 +198,8 @@ function timerApi.OnRecordingRunFinalized(timer, run)
 end
 
 function timerApi.InitializeRecordingState()
-    local cache = timerApi.host and timerApi.host.cache and timerApi.host.cache.persistent or nil
-    recordingReady = cache and cache.read("RecordingReady", false) == true or false
+    local runtimeState = getRuntimeState()
+    recordingReady = runtimeState and runtimeState.read("RecordingReady") == true or false
     currentMode = readRecordingMode()
 
     if currentMode == "multi" and isRecordingReady() then

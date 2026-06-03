@@ -3,6 +3,7 @@ local batch = deps.batch
 local overlay = deps.overlay
 local isVisible = deps.isVisible
 local isModeVisible = deps.isModeVisible
+local formatCache = deps.formatCache
 
 local MAX_BATCH_RUNS = 10
 
@@ -16,19 +17,26 @@ for index = 1, MAX_BATCH_RUNS do
     projectionRunRows[index] = { key = "run" .. index, label = "", igt = "", rta = "", lrt = "" }
 end
 
-local function batchVisible()
-    return isVisible() == true and batch.isVisible() == true
+local function batchVisible(_, runtime)
+    return isVisible(runtime) == true and batch.hasSession() == true
 end
 
-local function appendProjectionRow(source, projection)
+local function formatTime(row, mode, value, runtime)
+    if value == nil or isModeVisible(mode, runtime) ~= true then
+        return formatCache.cell(row, mode, nil)
+    end
+    return formatCache.cell(row, mode, value)
+end
+
+local function appendProjectionRow(source, projection, runtime)
     if source.label == nil or source.label == "" then
         return
     end
 
     projection.label = source.label
-    projection.igt = source.igt
-    projection.rta = source.rta
-    projection.lrt = source.lrt
+    formatTime(projection, "igt", source.igtCs, runtime)
+    formatTime(projection, "rta", source.rtaCs, runtime)
+    formatTime(projection, "lrt", source.lrtCs, runtime)
 
     projectionCount = projectionCount + 1
     projectionRows[projectionCount] = projection
@@ -52,25 +60,25 @@ function batchOverlay.register(overlays, order)
     })
 end
 
-function batchOverlay.buildRows()
+function batchOverlay.buildRows(runtime)
     local previousCount = projectionCount
     projectionCount = 0
-    if not batchVisible() then
+    if not batchVisible(nil, runtime) then
         trimProjectionRows(previousCount)
         return projectionRows
     end
 
-    local rows = batch.rows()
+    local rows = batch.session and batch.session() or batch.rows()
     for index = 1, MAX_BATCH_RUNS do
-        appendProjectionRow(rows.runs[index], projectionRunRows[index])
+        appendProjectionRow(rows.runs[index], projectionRunRows[index], runtime)
     end
-    appendProjectionRow(rows.current, projectionCurrentRow)
+    appendProjectionRow(rows.current, projectionCurrentRow, runtime)
     trimProjectionRows(previousCount)
     return projectionRows
 end
 
-function batchOverlay.project(ctx)
-    ctx.setTable("batch", batchOverlay.buildRows())
+function batchOverlay.project(ctx, runtime)
+    ctx.setTable("batch", batchOverlay.buildRows(runtime))
 end
 
 return batchOverlay

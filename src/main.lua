@@ -22,65 +22,51 @@ local loader = reload.auto_single()
 local function init()
     import_as_fallback(rom.game)
     local data = import("data.lua")
-    local timer = nil
-    local timerFacade = {
-        getRecordingStatus = function()
-            if timer then
-                return timer.getRecordingStatus()
-            end
-            return {
-                kind = "idle",
-                text = "Not recording",
-            }
-        end,
-    }
-    local ui = import("ui.lua").bind(timerFacade)
+    local actions = import("actions.lua")
 
-    local host, store = lib.createModule({
+    local module = lib.createModule({
         pluginGuid = PLUGIN_GUID,
         config = config,
         modpack = PACK_ID,
         id = MODULE_ID,
         name = "Speedrun Timer",
         tooltip = "Displays selected timer modes on screen during runs.",
-        storage = data.buildStorage(),
-        cache = {
-            RecordingReady = {
-                domain = "persistent",
-                key = "RecordingReady",
-                default = false,
-            },
-        },
-        actions = {
-            recording = function() end,
-        },
-        onSettingsCommitted = function(...)
-            if timer then
-                timer.onSettingsCommitted(...)
-            end
-        end,
-        drawTab = ui.drawTab,
-        drawQuickContent = ui.drawQuickContent,
     })
-    if not host then
+    if not module then
         return
     end
 
-    timer = import("timer/00_init.lua", nil, {
-        host = host,
-        store = store,
+    module.data.define(data.buildStorage())
+    local timer = import("timer/00_init.lua")
+    local controller = import("controller.lua", nil, {
+        timer = timer,
     })
-    timer.initialize()
-    timer.registerIntegrations()
-    timer.registerHooks()
-    timer.registerOverlays()
+    local display = import("display/display.lua", nil, {
+        timer = timer,
+        overlayEvents = controller.overlayEvents,
+    })
+    local sharedSnapshot = import("shared_snapshot.lua", nil, {
+        timer = timer,
+    })
+    local ui = import("ui.lua")
 
-    host.fallbackUi.attachGuiOnce(function(fallbackUi)
+    actions.attach(module, controller)
+    sharedSnapshot.register(module.shared)
+    sharedSnapshot.attach(timer)
+    timer.installHooks(module.hooks)
+    display.registerOverlays(module.overlays)
+    ui.attach(module, {
+        getRecordingStatus = timer.recording.status,
+    })
+    module.onCommit(controller.onCommit)
+    module.onActivate(controller.onActivate)
+
+    module.fallbackUi.attachGuiOnce(function(fallbackUi)
         rom.gui.add_imgui(fallbackUi.renderWindow)
         rom.gui.add_to_menu_bar(fallbackUi.addMenuBar)
     end)
 
-    local ok = host.activate()
+    local ok = module.activate()
     if not ok then
         return
     end

@@ -49,36 +49,25 @@ local activeTimer = nil
 local runFinalized = false
 local showCompletedRun = false
 local snapshot = {
-    igt = 0,
-    rta = 0,
-    lrt = 0,
-    centiseconds = {
-        igt = -1,
-        rta = -1,
-        lrt = -1,
-    },
-    formatted = {
-        igt = "00:00.00",
-        rta = "00:00.00",
-        lrt = "00:00.00",
-    },
+    active = false,
+    finalized = false,
+    hasSummary = false,
+    igtCs = 0,
+    rtaCs = 0,
+    lrtCs = 0,
 }
 
 local function updateSnapshotValue(key, value)
-    value = value or 0
-    snapshot[key] = value
-
-    local centiseconds = core.toCentiseconds(value)
-    if snapshot.centiseconds[key] ~= centiseconds then
-        snapshot.centiseconds[key] = centiseconds
-        snapshot.formatted[key] = core.formatCentiseconds(centiseconds)
-    end
+    snapshot[key .. "Cs"] = core.toCentiseconds(value)
 end
 
 local function updateSnapshot()
     updateSnapshotValue("igt", activeTimer and activeTimer:getInGameTime() or 0)
     updateSnapshotValue("rta", activeTimer and activeTimer:getRealTime() or 0)
     updateSnapshotValue("lrt", activeTimer and activeTimer:getLoadRemovedTime() or 0)
+    snapshot.active = activeTimer ~= nil and activeTimer.Running == true
+    snapshot.finalized = runFinalized == true
+    snapshot.hasSummary = singleRun.hasSummary()
 end
 
 function singleRun.clear()
@@ -137,7 +126,7 @@ function singleRun.processLoadEvent(isLoading)
     return true
 end
 
-function singleRun.hasCurrentRunDisplay()
+function singleRun.hasSummary()
     return activeTimer ~= nil and (activeTimer.Running == true or showCompletedRun == true)
 end
 

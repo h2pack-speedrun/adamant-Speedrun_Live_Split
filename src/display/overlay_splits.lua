@@ -1,8 +1,9 @@
 local deps = ... or {}
-local splits = deps.splits
+local currentRun = deps.currentRun
 local overlay = deps.overlay
 local isVisible = deps.isVisible
 local isModeVisible = deps.isModeVisible
+local formatCache = deps.formatCache
 
 local splitOverlay = {}
 local projectionRows = {}
@@ -16,19 +17,26 @@ local projectionBiomeRows = {
 local projectionTotalRow = { key = "total", label = "", igt = "", rta = "", lrt = "" }
 local projectionCount = 0
 
-local function splitVisible()
-    return isVisible() == true and splits.isVisible() == true
+local function splitVisible(_, runtime)
+    return isVisible(runtime) == true and currentRun.hasDetails() == true
 end
 
-local function appendProjectionRow(source, projection)
+local function formatTime(row, mode, value, runtime)
+    if value == nil or isModeVisible(mode, runtime) ~= true then
+        return formatCache.cell(row, mode, nil)
+    end
+    return formatCache.cell(row, mode, value)
+end
+
+local function appendProjectionRow(source, projection, runtime)
     if source.label == nil or source.label == "" then
         return
     end
 
     projection.label = source.label
-    projection.igt = source.igt
-    projection.rta = source.rta
-    projection.lrt = source.lrt
+    formatTime(projection, "igt", source.igtCs, runtime)
+    formatTime(projection, "rta", source.rtaCs, runtime)
+    formatTime(projection, "lrt", source.lrtCs, runtime)
 
     projectionCount = projectionCount + 1
     projectionRows[projectionCount] = projection
@@ -52,32 +60,32 @@ function splitOverlay.register(overlays, order)
     })
 end
 
-function splitOverlay.buildRows(timer, run, snapshot, liveOnly)
+function splitOverlay.buildRows(runtime, liveOnly)
     local previousCount = projectionCount
     projectionCount = 0
-    if not splitVisible() then
+    if not splitVisible(nil, runtime) then
         trimProjectionRows(previousCount)
         return projectionRows
     end
 
-    if liveOnly then
-        splits.updateLiveRows(timer, run, snapshot)
-    else
-        splits.updateRows(timer, run, snapshot)
-    end
+    local rows = currentRun.detailsSnapshot(liveOnly)
 
-    local rows = splits.rows()
-    appendProjectionRow(rows.header, projectionHeaderRow)
+    projectionHeaderRow.label = "Biome"
+    projectionHeaderRow.igt = isModeVisible("igt", runtime) and "IGT" or ""
+    projectionHeaderRow.rta = isModeVisible("rta", runtime) and "RTA" or ""
+    projectionHeaderRow.lrt = isModeVisible("lrt", runtime) and "LrT" or ""
+    projectionCount = projectionCount + 1
+    projectionRows[projectionCount] = projectionHeaderRow
     for index = 1, 4 do
-        appendProjectionRow(rows.biomes[index], projectionBiomeRows[index])
+        appendProjectionRow(rows.biomes[index], projectionBiomeRows[index], runtime)
     end
-    appendProjectionRow(rows.total, projectionTotalRow)
+    appendProjectionRow(rows.total, projectionTotalRow, runtime)
     trimProjectionRows(previousCount)
     return projectionRows
 end
 
-function splitOverlay.project(ctx, timer, run, snapshot, liveOnly)
-    ctx.setTable("splits", splitOverlay.buildRows(timer, run, snapshot, liveOnly))
+function splitOverlay.project(ctx, runtime, liveOnly)
+    ctx.setTable("splits", splitOverlay.buildRows(runtime, liveOnly))
 end
 
 return splitOverlay

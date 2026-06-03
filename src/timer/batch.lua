@@ -1,16 +1,20 @@
 local deps = ... or {}
 local core = deps.core
-local formatTimestamp = deps.formatTimestamp
 local isRunSuccess = deps.isRunSuccess
 
 local MAX_BATCH_RUNS = 10
 local batch = {}
 local rows = {
+    hasSession = false,
+    active = false,
+    failed = false,
+    targetRuns = 0,
+    completedRuns = 0,
     runs = {},
-    current = { label = "", igt = "", rta = "", lrt = "" },
+    current = { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil },
 }
 for index = 1, MAX_BATCH_RUNS do
-    rows.runs[index] = { label = "", igt = "", rta = "", lrt = "" }
+    rows.runs[index] = { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil }
 end
 
 local state = {
@@ -24,19 +28,6 @@ local state = {
     timer = nil,
     currentRunActive = false,
 }
-local displayCache = {
-    centiseconds = {
-        igt = -1,
-        rta = -1,
-        lrt = -1,
-    },
-    formatted = {
-        igt = "00:00.00",
-        rta = "00:00.00",
-        lrt = "00:00.00",
-    },
-}
-
 local BatchTimer = {}
 
 function BatchTimer:new()
@@ -94,11 +85,11 @@ local function clampTargetRuns(value)
     return value
 end
 
-local function setRow(row, label, igt, rta, lrt)
+local function setRow(row, label, igtCs, rtaCs, lrtCs)
     row.label = label or ""
-    row.igt = igt or ""
-    row.rta = rta or ""
-    row.lrt = lrt or ""
+    row.igtCs = igtCs
+    row.rtaCs = rtaCs
+    row.lrtCs = lrtCs
     return row
 end
 
@@ -114,19 +105,6 @@ local function getCurrentRunLabel()
     return getRunLabel("Current", runIndex)
 end
 
-local function formatTime(value)
-    return formatTimestamp(value)
-end
-
-local function formatLiveTime(mode, value)
-    local centiseconds = core.toCentiseconds(value)
-    if displayCache.centiseconds[mode] ~= centiseconds then
-        displayCache.centiseconds[mode] = centiseconds
-        displayCache.formatted[mode] = formatTime(value)
-    end
-    return displayCache.formatted[mode]
-end
-
 local function getActiveRunIgt(activeTimer)
     if activeTimer and activeTimer.getInGameTime then
         return activeTimer:getInGameTime()
@@ -140,6 +118,18 @@ end
 
 local function getBatchLrt()
     return state.timer and state.timer:getLoadRemovedTime() or 0
+end
+
+local function getActiveRunIgtCs(activeTimer)
+    return core.toCentiseconds(getActiveRunIgt(activeTimer))
+end
+
+local function getBatchRtaCs()
+    return core.toCentiseconds(getBatchRta())
+end
+
+local function getBatchLrtCs()
+    return core.toCentiseconds(getBatchLrt())
 end
 
 local function stopTimer()
@@ -218,19 +208,19 @@ function batch.processLoadEvent(isLoading)
     return false
 end
 
-function batch.displayTime(mode, activeTimer)
-    if not batch.isVisible() then
+function batch.time(mode, activeTimer)
+    if not batch.hasSession() then
         return nil
     end
     if mode == "igt" then
-        local activeIgt = state.currentRunActive and getActiveRunIgt(activeTimer) or 0
-        return formatLiveTime("igt", state.completedIgt + activeIgt)
+        local activeIgtCs = state.currentRunActive and getActiveRunIgtCs(activeTimer) or 0
+        return core.toCentiseconds(state.completedIgt) + activeIgtCs
     end
     if mode == "rta" then
-        return formatLiveTime("rta", getBatchRta())
+        return getBatchRtaCs()
     end
     if mode == "lrt" then
-        return formatLiveTime("lrt", getBatchLrt())
+        return getBatchLrtCs()
     end
     return nil
 end
@@ -246,9 +236,9 @@ function batch.finalizeRun(activeTimer, run)
         state.completedRuns = state.completedRuns + 1
         state.runRows[#state.runRows + 1] = {
             label = getRunLabel("Run", state.completedRuns),
-            igt = formatTime(state.completedIgt),
-            rta = formatTime(getBatchRta()),
-            lrt = formatTime(getBatchLrt()),
+            igtCs = core.toCentiseconds(state.completedIgt),
+            rtaCs = getBatchRtaCs(),
+            lrtCs = getBatchLrtCs(),
         }
         state.currentRunActive = false
         if state.completedRuns >= state.targetRuns then
@@ -261,29 +251,38 @@ function batch.finalizeRun(activeTimer, run)
     state.currentRunActive = false
     state.runRows[#state.runRows + 1] = {
         label = "Failed",
-        igt = formatTime(state.completedIgt + runIgt),
-        rta = formatTime(getBatchRta()),
-        lrt = formatTime(getBatchLrt()),
+        igtCs = core.toCentiseconds(state.completedIgt + runIgt),
+        rtaCs = getBatchRtaCs(),
+        lrtCs = getBatchLrtCs(),
     }
     finishCurrentBatch()
     return true
 end
 
-function batch.updateRows()
+function batch.updateRows(activeTimer)
     for index = 1, MAX_BATCH_RUNS do
         local source = state.runRows[index]
         if source then
-            setRow(rows.runs[index], source.label, source.igt, source.rta, source.lrt)
+            setRow(rows.runs[index], source.label, source.igtCs, source.rtaCs, source.lrtCs)
         else
-            setRow(rows.runs[index], "", "", "", "")
+            setRow(rows.runs[index], "", nil, nil, nil)
         end
     end
 
     if state.active and state.currentRunActive then
-        setRow(rows.current, getCurrentRunLabel(), "", "", "")
+        setRow(rows.current, getCurrentRunLabel(),
+            batch.time("igt", activeTimer),
+            batch.time("rta"),
+            batch.time("lrt"))
     else
-        setRow(rows.current, "", "", "", "")
+        setRow(rows.current, "", nil, nil, nil)
     end
+
+    rows.hasSession = batch.hasSession()
+    rows.active = state.active == true
+    rows.failed = state.failed == true
+    rows.targetRuns = state.targetRuns
+    rows.completedRuns = state.completedRuns
 end
 
 function batch.status()
@@ -321,7 +320,7 @@ function batch.isActive()
     return state.active == true
 end
 
-function batch.isVisible()
+function batch.hasSession()
     return state.timer ~= nil or state.failed == true or state.completedRuns > 0
 end
 
@@ -337,6 +336,11 @@ end
 
 function batch.rows()
     batch.updateRows()
+    return rows
+end
+
+function batch.session(activeTimer)
+    batch.updateRows(activeTimer)
     return rows
 end
 

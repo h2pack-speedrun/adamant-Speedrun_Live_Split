@@ -1,11 +1,10 @@
 local deps = ... or {}
-local singleRun = deps.singleRun
 local overlay = deps.overlay
 local isModeVisible = deps.isModeVisible
 local isTimerDisplayVisible = deps.isTimerDisplayVisible
 local getDisplayTime = deps.getDisplayTime
 
-local liveOverlay = {}
+local singleRunOverlay = {}
 local REGION = overlay.region
 local LINES = {
     {
@@ -28,24 +27,28 @@ local LINES = {
     },
 }
 local lineValues = {
-    igt = { label = "IGT:", time = "00:00.00" },
-    rta = { label = "RTA:", time = "00:00.00" },
-    lrt = { label = "LrT:", time = "00:00.00" },
+    igt = { label = "IGT:", time = "" },
+    rta = { label = "RTA:", time = "" },
+    lrt = { label = "LrT:", time = "" },
 }
 
-local function isLineVisible(mode)
-    return isTimerDisplayVisible() == true
-        and isModeVisible(mode) == true
+local function isLineVisible(mode, runtime)
+    return isTimerDisplayVisible(runtime) == true
+        and isModeVisible(mode, runtime) == true
 end
 
-local function updateLine(mode)
+local function updateLine(mode, runtime)
     local line = lineValues[mode]
-    local snapshot = singleRun.getSnapshot()
-    line.time = getDisplayTime(mode) or snapshot.formatted[mode]
+    if isLineVisible(mode, runtime) then
+        getDisplayTime(line, mode)
+    else
+        line.time = ""
+        line.timeCs = nil
+    end
     return line
 end
 
-function liveOverlay.register(overlays, order)
+function singleRunOverlay.register(overlays, order)
     for _, line in ipairs(LINES) do
         overlays.createLine(line.name, {
             componentName = "SpeedrunTimer_" .. line.label,
@@ -53,21 +56,21 @@ function liveOverlay.register(overlays, order)
             order = order + line.orderOffset,
             columnGap = 20,
             columns = overlay.buildSummaryColumns(),
-            visible = function()
-                return isLineVisible(line.mode)
+            visible = function(_, runtime)
+                return isLineVisible(line.mode, runtime)
             end,
         })
     end
 end
 
-function liveOverlay.project(ctx)
-    ctx.setLine("summary.igt", updateLine("igt"))
-    ctx.setLine("summary.rta", updateLine("rta"))
-    ctx.setLine("summary.lrt", updateLine("lrt"))
+function singleRunOverlay.project(ctx, runtime)
+    ctx.setLine("summary.igt", updateLine("igt", runtime))
+    ctx.setLine("summary.rta", updateLine("rta", runtime))
+    ctx.setLine("summary.lrt", updateLine("lrt", runtime))
 end
 
-function liveOverlay.region()
+function singleRunOverlay.region()
     return REGION
 end
 
-return liveOverlay
+return singleRunOverlay

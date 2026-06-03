@@ -1,5 +1,4 @@
 local module = {}
-local timer = nil
 
 local TIMER_MODE_OPTIONS = {
     {
@@ -57,19 +56,19 @@ local BATCH_TARGET_RUNS_OPTS = {
 }
 local START_RECORDING_OPTS = {
     id = "recording_start",
-    value = { kind = "start" },
+    value = true,
 }
 local RESTART_RECORDING_OPTS = {
     id = "recording_restart",
-    value = { kind = "start" },
+    value = true,
 }
 local CLEAR_RECORDING_OPTS = {
     id = "recording_clear",
-    value = { kind = "clear" },
+    value = true,
 }
 local STOP_RECORDING_OPTS = {
     id = "recording_stop",
-    value = { kind = "stop" },
+    value = true,
 }
 
 for _, option in ipairs(TIMER_MODE_OPTIONS) do
@@ -122,27 +121,29 @@ end
 
 local function drawRecordingActions(draw, actions, statusKind)
     local imgui = draw.imgui
-    local recordingAction = actions.get("recording")
+    local startAction = actions.get("recordingStart")
+    local stopAction = actions.get("recordingStop")
+    local clearAction = actions.get("recordingClear")
 
     if statusKind == "ready" or statusKind == "active" then
-        draw.widgets.button("Stop", withAction(STOP_RECORDING_OPTS, recordingAction))
+        draw.widgets.button("Stop", withAction(STOP_RECORDING_OPTS, stopAction))
         imgui.SameLine()
-        draw.widgets.button("Clear", withAction(CLEAR_RECORDING_OPTS, recordingAction))
+        draw.widgets.button("Clear", withAction(CLEAR_RECORDING_OPTS, clearAction))
         return
     end
 
     if statusKind == "recorded" or statusKind == "failed" then
-        draw.widgets.button("Start New", withAction(RESTART_RECORDING_OPTS, recordingAction))
+        draw.widgets.button("Start New", withAction(RESTART_RECORDING_OPTS, startAction))
         imgui.SameLine()
-        draw.widgets.button("Clear", withAction(CLEAR_RECORDING_OPTS, recordingAction))
+        draw.widgets.button("Clear", withAction(CLEAR_RECORDING_OPTS, clearAction))
         return
     end
 
-    draw.widgets.button("Start", withAction(START_RECORDING_OPTS, recordingAction))
+    draw.widgets.button("Start", withAction(START_RECORDING_OPTS, startAction))
 end
 
-local function getRecordingStatus()
-    local status = timer.getRecordingStatus()
+local function getRecordingStatus(statusView)
+    local status = statusView.getRecordingStatus()
     local statusText = status and status.text or "Not recording"
     local statusKind = status and status.kind or "idle"
     return statusKind, statusText
@@ -156,9 +157,9 @@ local function drawRecordingControls(draw, state, actions, recordingMode, status
     drawRecordingActions(draw, actions, statusKind)
 end
 
-local function drawRecordingSection(draw, state, actions, showRecordingTable, showRawTimers)
+local function drawRecordingSection(draw, state, actions, statusView, showRecordingTable, showRawTimers)
     drawSection(draw, "Recording")
-    local statusKind, statusText = getRecordingStatus()
+    local statusKind, statusText = getRecordingStatus(statusView)
     draw.widgets.text("Status: " .. statusText, {
         color = STATUS_TEXT_COLORS[statusKind] or MUTED_TEXT_COLOR,
     })
@@ -192,23 +193,27 @@ local function drawDisplaySection(draw, state, includeColumns)
     end
 end
 
-function module.drawTab(draw, state, actions)
+function module.drawTab(draw, state, actions, statusView)
     local showRecordingTable = readBool(state, "ShowRecordingTable", true)
     local showRawTimers = readBool(state, "ShowRawTimers", false)
-    drawRecordingSection(draw, state, actions, showRecordingTable, showRawTimers)
+    drawRecordingSection(draw, state, actions, statusView, showRecordingTable, showRawTimers)
     drawDisplaySection(draw, state, true)
 end
 
-function module.drawQuickContent(draw, state, actions)
+function module.drawQuickContent(draw, state, actions, statusView)
     local showRecordingTable = readBool(state, "ShowRecordingTable", true)
     local showRawTimers = readBool(state, "ShowRawTimers", false)
-    drawRecordingSection(draw, state, actions, showRecordingTable, showRawTimers)
+    drawRecordingSection(draw, state, actions, statusView, showRecordingTable, showRawTimers)
     drawDisplaySection(draw, state, false)
 end
 
-function module.bind(timerApi)
-    timer = timerApi
-    return module
+function module.attach(libModule, statusView)
+    libModule.ui.tab(function(_, ui)
+        return module.drawTab(ui.draw, ui.data, ui.actions, statusView)
+    end)
+    libModule.ui.quickContent(function(_, ui)
+        return module.drawQuickContent(ui.draw, ui.data, ui.actions, statusView)
+    end)
 end
 
 return module
