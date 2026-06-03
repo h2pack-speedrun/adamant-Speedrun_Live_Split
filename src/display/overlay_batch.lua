@@ -50,7 +50,7 @@ end
 
 function batchOverlay.register(overlays, order)
     overlays.createTable("batch", {
-        componentName = "SpeedrunTimer_Batch",
+        componentName = "LiveSplit_Batch",
         region = overlay.region,
         order = order,
         maxRows = MAX_BATCH_RUNS + 1,

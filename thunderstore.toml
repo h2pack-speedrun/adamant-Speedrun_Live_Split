@@ -4,10 +4,10 @@ schemaVersion = "0.0.1"
 
 [package]
 namespace = "adamant"
-name = "Speedrun_Timer"
+name = "Speedrun_Live_Split"
 versionNumber = "1.1.2"
-description = "Displays RTA and load-removed timers on screen during runs."
-websiteUrl = "https://github.com/h2pack-speedrun/adamant-Speedrun_Timer"
+description = "LiveSplit-style timer and recording tools for the Speedrun modpack."
+websiteUrl = "https://github.com/h2pack-speedrun/adamant-Speedrun_Live_Split"
 containsNsfwContent = false
 
 [package.dependencies]

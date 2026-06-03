@@ -1,12 +1,12 @@
-# Speedrun Timer
+# LiveSplit
 
-Speedrun Timer adds in-game timing overlays and LiveSplit-style biome splits for Hades II runs.
+LiveSplit adds in-game timing overlays and LiveSplit-style biome splits for Hades II runs.
 
 Part of the [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Speedrun_Core/).
 
 ## What It Does
 
-Speedrun Timer records runs and shows selected timing information while you play. Its main feature is a recording table that tracks your route through a run like a compact in-game LiveSplit layout.
+LiveSplit records runs and shows selected timing information while you play. Its main feature is a recording table that tracks your route through a run like a compact in-game LiveSplit layout.
 
 The recording table supports:
 

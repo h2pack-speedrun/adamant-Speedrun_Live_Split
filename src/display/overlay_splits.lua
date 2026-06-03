@@ -50,7 +50,7 @@ end
 
 function splitOverlay.register(overlays, order)
     overlays.createTable("splits", {
-        componentName = "SpeedrunTimer_Split",
+        componentName = "LiveSplit_Split",
         region = overlay.region,
         order = order,
         maxRows = 6,

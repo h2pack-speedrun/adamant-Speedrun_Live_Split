@@ -14,7 +14,7 @@ local reload = mods['SGG_Modding-ReLoad']
 local config = chalk.auto('config.lua')
 
 local PACK_ID = "speedrun"
-local MODULE_ID = "SpeedrunTimer"
+local MODULE_ID = "LiveSplit"
 local PLUGIN_GUID = _PLUGIN.guid
 
 local loader = reload.auto_single()
@@ -29,8 +29,8 @@ local function init()
         config = config,
         modpack = PACK_ID,
         id = MODULE_ID,
-        name = "Speedrun Timer",
-        tooltip = "Displays selected timer modes on screen during runs.",
+        name = "LiveSplit",
+        tooltip = "LiveSplit-style timer and recording tools for speedruns.",
     })
     if not module then
         return

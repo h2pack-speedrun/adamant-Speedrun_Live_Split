@@ -45,8 +45,8 @@
 
 Initial release
 
-[unreleased]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.2...HEAD
-[1.1.2]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.1...1.1.2
-[1.1.1]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.1.0...1.1.1
-[1.1.0]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/1.0.0...1.1.0
-[1.0.0]: https://github.com/h2pack-speedrun/adamant-Speedrun_Timer/compare/634e4468165e8839e160039a7a5d3e751344e5dd...1.0.0
+[unreleased]: https://github.com/h2pack-speedrun/adamant-Speedrun_Live_Split/compare/1.1.2...HEAD
+[1.1.2]: https://github.com/h2pack-speedrun/adamant-Speedrun_Live_Split/compare/1.1.1...1.1.2
+[1.1.1]: https://github.com/h2pack-speedrun/adamant-Speedrun_Live_Split/compare/1.1.0...1.1.1
+[1.1.0]: https://github.com/h2pack-speedrun/adamant-Speedrun_Live_Split/compare/1.0.0...1.1.0
+[1.0.0]: https://github.com/h2pack-speedrun/adamant-Speedrun_Live_Split/compare/634e4468165e8839e160039a7a5d3e751344e5dd...1.0.0

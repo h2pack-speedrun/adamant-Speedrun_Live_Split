@@ -51,7 +51,7 @@ end
 function singleRunOverlay.register(overlays, order)
     for _, line in ipairs(LINES) do
         overlays.createLine(line.name, {
-            componentName = "SpeedrunTimer_" .. line.label,
+            componentName = "LiveSplit_" .. line.label,
             region = REGION,
             order = order + line.orderOffset,
             columnGap = 20,
