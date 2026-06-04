@@ -855,7 +855,7 @@ assertEqual(uiButtons[1], "Stop")
 assertEqual(uiButtons[2], "Clear")
 assertEqual(uiButtons[3], nil)
 
-local harness = dofile("../../Setup/tests/module_entrypoint_harness.lua")
+local harness = dofile("../../ModpackTools/tests/module_entrypoint_harness.lua")
 local boot = harness.bootModule({
     pluginGuid = "adamantSpeedrun-LiveSplit",
     moduleSrcDir = "src",
