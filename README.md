@@ -2,7 +2,7 @@
 
 LiveSplit adds in-game timing overlays and LiveSplit-style biome splits for Hades II runs.
 
-Part of the [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Speedrun_Core/).
+Part of the [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Speedrun_Modpack/).
 
 ## What It Does
 
@@ -39,4 +39,4 @@ This module only displays timing information. It does not change rooms, rewards,
 
 Install via r2modman.
 
-This module is usually installed as part of the full [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Speedrun_Core/), where it appears in the shared Speedrun UI.
+This module is usually installed as part of the full [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Speedrun_Modpack/), where it appears in the shared Speedrun UI.
