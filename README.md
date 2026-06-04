@@ -1,6 +1,6 @@
 # LiveSplit
 
-LiveSplit adds in-game timing overlays and LiveSplit-style biome splits for Hades II runs.
+Mod to add LiveSplit like native support to the game.
 
 Part of the [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamant/Speedrun_Modpack/).
 
