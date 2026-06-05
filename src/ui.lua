@@ -3,17 +3,17 @@ local module = {}
 local TIMER_MODE_OPTIONS = {
     {
         alias = "ShowIGT",
-        label = "In-Game Time",
-        tooltip = "Show gameplay time from CurrentRun.GameplayTime.",
+        label = "IGT",
+        tooltip = "Show gameplay time from the in game timer.",
     },
     {
         alias = "ShowRTA",
-        label = "Real Time",
-        tooltip = "Show wall-clock time.",
+        label = "RTA",
+        tooltip = "Show real attack timer.",
     },
     {
         alias = "ShowLrT",
-        label = "Load-Removed Time",
+        label = "LrT",
         tooltip = "Show real time with map-load time removed.",
     },
 }
@@ -35,12 +35,12 @@ local MUTED_TEXT_OPTS = { color = MUTED_TEXT_COLOR }
 local WARNING_TEXT_OPTS = { color = WARNING_TEXT_COLOR }
 local TIMER_MODE_OPTS = {}
 local SHOW_RAW_TIMERS_OPTS = {
-    label = "Show raw timer rows",
+    label = "Show raw run timer",
     tooltip = "Show compact IGT/RTA/LrT rows while recording is active.",
 }
 local SHOW_RECORDING_TABLE_OPTS = {
-    label = "Show recording table",
-    tooltip = "Show split or batch rows while recording.",
+    label = "Show run splits",
+    tooltip = "Show run split as a table while recording.",
 }
 local RECORDING_MODE_OPTS = {
     values = RECORDING_MODE_VALUES,
@@ -51,7 +51,7 @@ local RECORDING_MODE_OPTS = {
 local BATCH_TARGET_RUNS_OPTS = {
     label = "Runs to record",
     min = 1,
-    max = 10,
+    max = 20,
     default = 3,
 }
 local START_RECORDING_OPTS = {
