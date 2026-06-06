@@ -47,12 +47,14 @@ function data.buildStorage()
             max = 10,
             hash = false,
         },
-        {
+    }
+end
+
+function data.buildStatus()
+    return {
+        RecordingReady = {
             type = "bool",
-            alias = "RecordingReady",
-            mode = "runtime",
             persist = true,
-            hash = false,
             default = false,
         },
     }

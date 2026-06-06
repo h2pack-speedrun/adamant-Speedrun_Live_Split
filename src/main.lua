@@ -37,6 +37,7 @@ local function init()
     end
 
     module.data.define(data.buildStorage())
+    module.status.define(data.buildStatus())
     local timer = import("timer/00_init.lua")
     local controller = import("controller.lua", nil, {
         timer = timer,

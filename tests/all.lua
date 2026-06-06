@@ -519,8 +519,8 @@ local timerInitRuntimeContext = {
         read = function(alias)
             return timerInitStoreValues[alias]
         end,
-        runtimeOwned = newRuntimeState(),
     },
+    status = newRuntimeState(),
 }
 local timerInit = withImport(function()
     return assert(loadfile("src/timer/00_init.lua"))({
@@ -555,8 +555,8 @@ local recordingRuntime = {
         read = function(alias)
             return recordingSettings[alias]
         end,
-        runtimeOwned = newRuntimeState(recordingCache),
     },
+    status = newRuntimeState(recordingCache),
 }
 local recordingSplits = assert(loadfile("src/timer/splits.lua"))({
     toCentiseconds = core.toCentiseconds,
@@ -663,8 +663,8 @@ local bridgeRuntime = {
         read = function(alias)
             return bridgeSettings[alias]
         end,
-        runtimeOwned = newRuntimeState(),
     },
+    status = newRuntimeState(),
 }
 bridgeRecording = assert(loadfile("src/timer/recording.lua"))({
     splits = bridgeSplits,

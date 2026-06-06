@@ -25,12 +25,12 @@ local function isRecordingReady(runtime)
     if runtime == nil then
         return recordingReady == true
     end
-    return runtime.data.runtimeOwned.read("RecordingReady") == true
+    return runtime.status.read("RecordingReady") == true
 end
 
 local function setRecordingReady(runtime, value)
     recordingReady = value == true
-    runtime.data.runtimeOwned.write("RecordingReady", recordingReady)
+    runtime.status.write("RecordingReady", recordingReady)
 end
 
 local function clearSingleRecording(keepReady)
