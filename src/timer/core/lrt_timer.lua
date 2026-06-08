@@ -1,10 +1,6 @@
 -- Load-Removed Time timer. LRT = RealTime - LoadTime.
 
 local deps = ...
-local Timer = deps and deps.Timer or import('timer/core/base_timer.lua')
-local RtaTimer = deps and deps.RtaTimer or import('timer/core/rta_timer.lua', nil, {
-    Timer = Timer,
-})
 local getTime = deps and deps.getTime or GetTime
 
 local LrtTimer = {}
@@ -16,8 +12,8 @@ function LrtTimer:new(args)
         Loading = false,
         WasReset = false,
         LoadStartSystemTime = nil,
-        RealTimer = args.withRtaTimer or RtaTimer:new(),
-        LoadTimer = Timer:new(),
+        LoadTime = 0,
+        RealTimer = args.rtaTimer,
     }
     setmetatable(o, self)
     self.__index = self
@@ -25,23 +21,22 @@ function LrtTimer:new(args)
 end
 
 function LrtTimer:init()
-    self.RealTimer:init()
-    self.LoadTimer:init()
+    self.Loading = false
+    self.LoadStartSystemTime = nil
+    self.LoadTime = 0
     self.WasReset = false
 end
 
 function LrtTimer:start()
     self:init()
     self.Running = true
-    self.RealTimer:start()
-    self.LoadTimer:start()
-    self.LoadTimer:pause()
 end
 
 function LrtTimer:stop()
+    if self.Loading then
+        self:stopLoad()
+    end
     self.Running = false
-    self.RealTimer:stop()
-    self.LoadTimer:stop()
 end
 
 function LrtTimer:startLoad()
@@ -56,7 +51,7 @@ function LrtTimer:stopLoad()
 
     local now = getTime({})
     local timeThisLoad = now - self.LoadStartSystemTime
-    self.LoadTimer:setTime(self.LoadTimer:getTime() + timeThisLoad)
+    self.LoadTime = self.LoadTime + timeThisLoad
     self.LoadStartSystemTime = nil
 end
 
@@ -72,21 +67,20 @@ end
 function LrtTimer:reset()
     self.Running = false
     self.Loading = false
-    self.RealTimer:reset()
-    self.LoadTimer:reset()
+    self.LoadStartSystemTime = nil
+    self.LoadTime = 0
     self.WasReset = true
 end
 
-function LrtTimer:update()
-    self.RealTimer:update()
-end
-
-function LrtTimer:trueUp()
-    self.RealTimer:trueUp()
+function LrtTimer:getLoadTime()
+    if self.Loading and self.LoadStartSystemTime ~= nil then
+        return self.LoadTime + getTime({}) - self.LoadStartSystemTime
+    end
+    return self.LoadTime
 end
 
 function LrtTimer:getTime()
-    return self.RealTimer:getTime() - self.LoadTimer:getTime()
+    return self.RealTimer:getTime() - self:getLoadTime()
 end
 
 return LrtTimer

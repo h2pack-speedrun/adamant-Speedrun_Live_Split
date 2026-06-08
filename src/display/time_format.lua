@@ -1,12 +1,5 @@
 local timeFormat = {}
 
-function timeFormat.toCentiseconds(timestamp)
-    if not timestamp then
-        return 0
-    end
-    return math.floor((timestamp * 100) + 0.0000001)
-end
-
 function timeFormat.formatCentiseconds(totalCentiseconds)
     local centiseconds = totalCentiseconds % 100
     local totalSeconds = math.floor(totalCentiseconds / 100)
@@ -19,10 +12,6 @@ function timeFormat.formatCentiseconds(totalCentiseconds)
         return string.format("%02d:%02d.%02d", minutes, seconds, centiseconds)
     end
     return string.format("%02d:%02d:%02d.%02d", hours, minutes, seconds, centiseconds)
-end
-
-function timeFormat.formatTimestamp(timestamp)
-    return timeFormat.formatCentiseconds(timeFormat.toCentiseconds(timestamp))
 end
 
 return timeFormat

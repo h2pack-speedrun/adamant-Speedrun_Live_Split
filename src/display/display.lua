@@ -1,8 +1,10 @@
 local deps = ... or {}
 local timer = deps.timer
+local data = deps.data or import("data.lua")
 local overlay = deps.overlay or import('display/overlay_rows.lua')
 local overlayEvents = deps.overlayEvents
-local formatCentiseconds = deps.formatCentiseconds or timer.formatCentiseconds
+local timeFormat = deps.timeFormat or import('display/time_format.lua')
+local formatCentiseconds = deps.formatCentiseconds or timeFormat.formatCentiseconds
 local formatCache = deps.formatCache or import('display/format_cache.lua', nil, {
     formatCentiseconds = formatCentiseconds,
 })
@@ -50,6 +52,7 @@ function ensureOverlays()
                 hasSession = timer.batch.hasSession,
                 session = projection.batchSession,
             },
+            maxRows = data.batchTargetRuns.max,
             overlay = overlay,
             isVisible = settings.isBatchVisible,
             isModeVisible = settings.isModeVisible,

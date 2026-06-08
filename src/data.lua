@@ -1,5 +1,11 @@
 local data = {}
 
+data.batchTargetRuns = {
+    default = 3,
+    min = 1,
+    max = 10,
+}
+
 function data.buildStorage()
     return {
         {
@@ -42,9 +48,9 @@ function data.buildStorage()
         {
             type = "int",
             alias = "BatchTargetRuns",
-            default = 3,
-            min = 1,
-            max = 10,
+            default = data.batchTargetRuns.default,
+            min = data.batchTargetRuns.min,
+            max = data.batchTargetRuns.max,
             hash = false,
         },
     }

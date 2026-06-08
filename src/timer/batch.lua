@@ -2,7 +2,6 @@ local deps = ... or {}
 local core = deps.core
 local isRunSuccess = deps.isRunSuccess
 
-local MAX_BATCH_RUNS = 10
 local batch = {}
 local rows = {
     hasSession = false,
@@ -14,9 +13,6 @@ local rows = {
     current = { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil },
     currentTime = { igtCs = nil, rtaCs = nil, lrtCs = nil },
 }
-for index = 1, MAX_BATCH_RUNS do
-    rows.runs[index] = { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil }
-end
 
 local state = {
     ready = false,
@@ -35,7 +31,7 @@ function BatchTimer:new()
     local o = {}
     o.Running = false
     o.RtaTimer = core.RtaTimer:new()
-    o.LrtTimer = core.LrtTimer:new({ withRtaTimer = o.RtaTimer })
+    o.LrtTimer = core.LrtTimer:new({ rtaTimer = o.RtaTimer })
     setmetatable(o, self)
     self.__index = self
     return o
@@ -58,7 +54,6 @@ function BatchTimer:update()
         return
     end
     self.RtaTimer:update()
-    self.LrtTimer:update()
 end
 
 function BatchTimer:getRealTime()
@@ -75,15 +70,8 @@ function BatchTimer:processLoadEvent(isLoading)
     end
 end
 
-local function clampTargetRuns(value)
-    value = math.floor(tonumber(value) or 3)
-    if value < 1 then
-        return 1
-    end
-    if value > MAX_BATCH_RUNS then
-        return MAX_BATCH_RUNS
-    end
-    return value
+local function normalizeTargetRuns(value)
+    return math.floor(tonumber(value) or 0)
 end
 
 local function setRow(row, label, igtCs, rtaCs, lrtCs)
@@ -160,7 +148,7 @@ end
 
 function batch.start(targetRuns)
     state.ready = true
-    state.targetRuns = clampTargetRuns(targetRuns)
+    state.targetRuns = normalizeTargetRuns(targetRuns)
     resetCurrentBatch(true)
 end
 
@@ -171,7 +159,7 @@ end
 
 function batch.clear(targetRuns)
     if targetRuns ~= nil then
-        state.targetRuns = clampTargetRuns(targetRuns)
+        state.targetRuns = normalizeTargetRuns(targetRuns)
     end
     resetCurrentBatch(true)
 end
@@ -182,9 +170,6 @@ function batch.startRun()
     end
     if not state.active then
         resetCurrentBatch(true)
-        if state.targetRuns <= 0 then
-            state.targetRuns = clampTargetRuns()
-        end
         state.active = true
     end
     if not state.timer then
@@ -261,13 +246,18 @@ function batch.finalizeRun(activeTimer, run)
 end
 
 function batch.updateRows(activeTimer)
-    for index = 1, MAX_BATCH_RUNS do
+    local rowCount = math.max(state.targetRuns, #state.runRows)
+    for index = 1, rowCount do
+        rows.runs[index] = rows.runs[index] or { label = "", igtCs = nil, rtaCs = nil, lrtCs = nil }
         local source = state.runRows[index]
         if source then
             setRow(rows.runs[index], source.label, source.igtCs, source.rtaCs, source.lrtCs)
         else
             setRow(rows.runs[index], "", nil, nil, nil)
         end
+    end
+    for index = rowCount + 1, #rows.runs do
+        setRow(rows.runs[index], "", nil, nil, nil)
     end
 
     if state.active and state.currentRunActive then

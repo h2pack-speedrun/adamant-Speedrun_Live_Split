@@ -1,3 +1,6 @@
+local deps = ... or {}
+local data = deps.data or import("data.lua")
+
 local module = {}
 
 local TIMER_MODE_OPTIONS = {
@@ -50,9 +53,9 @@ local RECORDING_MODE_OPTS = {
 }
 local BATCH_TARGET_RUNS_OPTS = {
     label = "Runs to record",
-    min = 1,
-    max = 20,
-    default = 3,
+    min = data.batchTargetRuns.min,
+    max = data.batchTargetRuns.max,
+    default = data.batchTargetRuns.default,
 }
 local START_RECORDING_OPTS = {
     id = "recording_start",

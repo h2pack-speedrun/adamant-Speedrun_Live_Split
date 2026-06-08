@@ -4,8 +4,7 @@ local overlay = deps.overlay
 local isVisible = deps.isVisible
 local isModeVisible = deps.isModeVisible
 local formatCache = deps.formatCache
-
-local MAX_BATCH_RUNS = 10
+local maxBatchRunRows = deps.maxRows
 
 local batchOverlay = {}
 local projectionRows = {}
@@ -13,7 +12,7 @@ local projectionRunRows = {}
 local projectionCurrentRow = { key = "current", label = "", igt = "", rta = "", lrt = "" }
 local projectionCount = 0
 
-for index = 1, MAX_BATCH_RUNS do
+for index = 1, maxBatchRunRows do
     projectionRunRows[index] = { key = "run" .. index, label = "", igt = "", rta = "", lrt = "" }
 end
 
@@ -29,6 +28,9 @@ local function formatTime(row, mode, value, runtime)
 end
 
 local function appendProjectionRow(source, projection, runtime)
+    if source == nil then
+        return
+    end
     if source.label == nil or source.label == "" then
         return
     end
@@ -53,8 +55,8 @@ function batchOverlay.register(overlays, order)
         componentName = "LiveSplit_Batch",
         region = overlay.region,
         order = order,
-        maxRows = MAX_BATCH_RUNS + 1,
-        columnGap = 20,
+        maxRows = maxBatchRunRows + 1,
+        columnGap = overlay.timerTableColumnGap,
         columns = overlay.buildTimerTableColumns(isModeVisible),
         visible = batchVisible,
     })
@@ -69,7 +71,7 @@ function batchOverlay.buildRows(runtime)
     end
 
     local rows = batch.session and batch.session() or batch.rows()
-    for index = 1, MAX_BATCH_RUNS do
+    for index = 1, maxBatchRunRows do
         appendProjectionRow(rows.runs[index], projectionRunRows[index], runtime)
     end
     appendProjectionRow(rows.current, projectionCurrentRow, runtime)

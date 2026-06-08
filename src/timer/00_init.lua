@@ -156,6 +156,4 @@ function timer.cleanup(runtime)
     return result
 end
 
-timer.formatCentiseconds = core.formatCentiseconds
-
 return timer

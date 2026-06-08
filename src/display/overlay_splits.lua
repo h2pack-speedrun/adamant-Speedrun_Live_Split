@@ -54,7 +54,7 @@ function splitOverlay.register(overlays, order)
         region = overlay.region,
         order = order,
         maxRows = 6,
-        columnGap = 20,
+        columnGap = overlay.timerTableColumnGap,
         columns = overlay.buildTimerTableColumns(isModeVisible),
         visible = splitVisible,
     })

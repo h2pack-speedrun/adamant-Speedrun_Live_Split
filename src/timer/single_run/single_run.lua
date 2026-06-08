@@ -8,7 +8,7 @@ function LiveRunTimer:new()
     local o = {}
     o.Running = false
     o.RtaTimer = core.RtaTimer:new()
-    o.LrtTimer = core.LrtTimer:new({ withRtaTimer = o.RtaTimer })
+    o.LrtTimer = core.LrtTimer:new({ rtaTimer = o.RtaTimer })
     o.IgtTimer = core.IgtTimer:new()
     setmetatable(o, self)
     self.__index = self
@@ -29,7 +29,6 @@ end
 
 function LiveRunTimer:update()
     self.RtaTimer:update()
-    self.LrtTimer:update()
 end
 
 function LiveRunTimer:getRealTime()
