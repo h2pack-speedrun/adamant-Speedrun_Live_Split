@@ -8,6 +8,12 @@ Part of the [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamantSpeed
 
 LiveSplit records runs and shows selected timing information while you play. Its main feature is a recording table that tracks your route through a run like a compact in-game LiveSplit layout.
 
+## Examples
+
+![LiveSplit timer table with biome splits](assets/Timer1.png)
+
+![LiveSplit timer table with biome splits](assets/Timer2.png)
+
 The recording table supports:
 
 - Underworld routes: Erebus, Oceanus, Fields, and Tartarus.
@@ -30,6 +36,14 @@ The timer can show these timing columns:
 - Choose which timer columns are visible.
 - Use single-run split mode or multi-run batch recording.
 - Record a batch of 1 to 10 runs and keep cumulative batch totals.
+
+### Single-Run Recording
+
+![LiveSplit single-run recording controls](assets/SingleRun.png)
+
+### Multi-Run Recording
+
+![LiveSplit multi-run batch recording controls](assets/MultiRun.png)
 
 ## Gameplay Impact
 
