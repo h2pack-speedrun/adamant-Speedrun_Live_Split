@@ -32,10 +32,25 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout files
+      - name: Checkout module
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           lfs: true
+          fetch-depth: 0
+          path: Submodules/${{ github.event.repository.name }}
+
+      - name: Checkout ModpackTools
+        uses: actions/checkout@v4
+        with:
+          repository: h2-modpack/ModpackTools
+          path: ModpackTools
+          ref: main
+
+      - name: Checkout Lib
+        uses: actions/checkout@v4
+        with:
+          repository: h2-modpack/adamant-ModpackLib
+          path: adamant-ModpackLib
 
       - name: Setup Lua
         uses: leafo/gh-actions-lua@v10
@@ -45,41 +60,46 @@ jobs:
       - name: Setup Luarocks
         uses: leafo/gh-actions-luarocks@v4
 
-      - name: Install Luacheck
-        run: luarocks install luacheck
+      - name: Install validation tools
+        run: |
+          luarocks install luacheck
+          luarocks install luaunit
 
       - name: Validate package sources
+        working-directory: Submodules/${{ github.event.repository.name }}
         run: |
           luacheck src/
           find src -type f -name '*.lua' -print0 | xargs -0 -r -n1 luac -p
-
-      - name: Install LuaUnit
-        if: ${{ hashFiles('tests/all.lua') != '' }}
-        run: luarocks install luaunit
+          find tests -type f -name '*.lua' -print0 | xargs -0 -r -n1 luac -p
 
       - name: Run tests
-        if: ${{ hashFiles('tests/all.lua') != '' }}
-        run: lua tests/all.lua
-
-      - name: Rotate unreleased section in changelog
-        uses: baynezy/ChangeLogger.Action@6e3ad430f08e13698bb01027a13ba4349b0143cc
-        with:
-          tag: ${{ inputs.tag }}
-          log-path: ${{ env.changelog }}
-
-      - name: Rotate version in Thunderstore CLI config
+        working-directory: Submodules/${{ github.event.repository.name }}
         run: |
-          sed -i 's/versionNumber = ".*"/versionNumber = "${{ inputs.tag }}"/' ${{ env.thunderstore-config }}
+          if [ -f tests/all.lua ]; then
+            lua tests/all.lua
+          fi
+
+      - name: Run integration tests
+        working-directory: Submodules/${{ github.event.repository.name }}
+        run: |
+          if [ -f tests/integration.lua ]; then
+            lua tests/integration.lua
+          fi
+
+      - name: Prepare release files
+        working-directory: Submodules/${{ github.event.repository.name }}
+        run: python ../../ModpackTools/github/prepare_package_release.py --tag '${{ inputs.tag }}' --allow-empty
 
       - name: Install Thunderstore CLI
         run: dotnet tool install -g tcli
 
       - name: Build package
+        working-directory: Submodules/${{ github.event.repository.name }}
         run: |
           tcli build
           ARTIFACT_NAME=$(find "${{ env.build-dir }}" -type f -printf "%f\n")
           echo "artifact-name=${ARTIFACT_NAME}" >> "$GITHUB_ENV"
-          echo "artifact-path=${{ env.build-dir }}/${ARTIFACT_NAME}" >> "$GITHUB_ENV"
+          echo "artifact-path=Submodules/${{ github.event.repository.name }}/${{ env.build-dir }}/${ARTIFACT_NAME}" >> "$GITHUB_ENV"
 
       - name: Upload artifact to workflow
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
@@ -96,6 +116,7 @@ jobs:
 
       - name: Tag and push to repository
         if: ${{ !inputs.is-dry-run }}
+        working-directory: Submodules/${{ github.event.repository.name }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
