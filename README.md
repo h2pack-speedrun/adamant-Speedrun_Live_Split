@@ -10,9 +10,9 @@ LiveSplit records runs and shows selected timing information while you play. Its
 
 ## Examples
 
-![LiveSplit timer table with biome splits](assets/Timer1.png)
+<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/Timer1.png" width="100%"/>
 
-![LiveSplit timer table with biome splits](assets/Timer2.png)
+<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/Timer2.png" width="100%"/>
 
 The recording table supports:
 
@@ -39,11 +39,11 @@ The timer can show these timing columns:
 
 ### Single-Run Recording
 
-![LiveSplit single-run recording controls](assets/SingleRun.png)
+<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/SingleRun.png" width="100%"/>
 
 ### Multi-Run Recording
 
-![LiveSplit multi-run batch recording controls](assets/MultiRun.png)
+<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/MultiRun.png" width="100%"/>
 
 ## Gameplay Impact
 
