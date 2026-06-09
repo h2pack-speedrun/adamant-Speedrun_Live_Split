@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-09
+
 ### Changed
 
 - Ported timer boot, overlays, hooks, actions, fallback UI, and draw widgets to the current ModpackLib host/draw APIs.
@@ -45,7 +47,8 @@
 
 Initial release
 
-[unreleased]: https://github.com/h2pack-speedrun/adamant-Speedrun_LiveSplit/compare/1.1.2...HEAD
+[unreleased]: https://github.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/compare/2.0.0...HEAD
+[2.0.0]: https://github.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/compare/1.1.2...2.0.0
 [1.1.2]: https://github.com/h2pack-speedrun/adamant-Speedrun_LiveSplit/compare/1.1.1...1.1.2
 [1.1.1]: https://github.com/h2pack-speedrun/adamant-Speedrun_LiveSplit/compare/1.1.0...1.1.1
 [1.1.0]: https://github.com/h2pack-speedrun/adamant-Speedrun_LiveSplit/compare/1.0.0...1.1.0
