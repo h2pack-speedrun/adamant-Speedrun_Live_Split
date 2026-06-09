@@ -313,8 +313,20 @@ function batch.isActive()
     return state.active == true
 end
 
+function batch.isReady()
+    return state.ready == true
+end
+
+function batch.targetRuns()
+    return state.targetRuns
+end
+
 function batch.hasSession()
     return state.timer ~= nil or state.failed == true or state.completedRuns > 0
+end
+
+function batch.hasProgress()
+    return state.active == true or state.failed == true or state.completedRuns > 0
 end
 
 function batch.row(index)

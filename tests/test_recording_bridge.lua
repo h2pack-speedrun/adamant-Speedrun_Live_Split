@@ -106,8 +106,12 @@ recording.onRunFinalized(splitTimer, {
 assertEqual(recording.status().kind, "recorded")
 
 recordingSettings.RecordingMode = "multi"
-recording.syncMode(recordingRuntime)
+recording.syncSettings(recordingRuntime)
 assertEqual(recording.status().kind, "ready")
+assertEqual(recording.status().text, "Recording ready for 2 runs")
+recordingSettings.BatchTargetRuns = 4
+recording.syncSettings(recordingRuntime)
+assertEqual(recording.status().text, "Recording ready for 4 runs")
 recording.onRunStarted({
     CurrentRoom = { RoomSetName = "F" },
 })
@@ -121,12 +125,46 @@ recording.onRunFinalized({
 }, {
     Cleared = true,
 })
-assertEqual(recording.status().text, "Recording 1 / 2")
+assertEqual(recording.status().text, "Recording 1 / 4")
 assertEqual(recordingBatch.row(1).igtCs, 1500)
 recording.stop(recordingRuntime)
 assertEqual(recordingCache.RecordingReady, false)
 assertEqual(recording.status().kind, "idle")
 setTime(0)
+
+local restoredSettings = {
+    RecordingMode = "multi",
+    BatchTargetRuns = 6,
+}
+local restoredRuntime = {
+    data = {
+        read = function(alias)
+            return restoredSettings[alias]
+        end,
+    },
+    status = newRuntimeState({
+        RecordingReady = true,
+    }),
+}
+local restoredSplits = assert(loadfile("src/timer/splits.lua"))({
+    toCentiseconds = core.toCentiseconds,
+    isRunSuccess = function(run)
+        return run and run.Cleared == true
+    end,
+})
+local restoredBatch = assert(loadfile("src/timer/batch.lua"))({
+    core = core,
+    isRunSuccess = function(run)
+        return run and run.Cleared == true
+    end,
+})
+local restoredRecording = assert(loadfile("src/timer/recording.lua"))({
+    splits = restoredSplits,
+    batch = restoredBatch,
+})
+restoredRecording.initialize(restoredRuntime)
+assertEqual(restoredRecording.status().kind, "ready")
+assertEqual(restoredRecording.status().text, "Recording ready for 6 runs")
 
 local bridgeSettings = {
     RecordingMode = "single",
@@ -236,7 +274,7 @@ assert((bridgeEvents.currentRunSummaryChanged or 0) > 0, "expected currentRunSum
 assert((bridgeEvents.currentRunDetailsChanged or 0) > 0, "expected currentRunDetailsChanged event")
 
 bridgeSettings.RecordingMode = "multi"
-bridgeRecording.syncMode(bridgeRuntime)
+bridgeRecording.syncSettings(bridgeRuntime)
 setTime(0)
 local bridgeMultiRun = {
     GameplayTime = 0,

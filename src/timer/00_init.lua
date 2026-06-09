@@ -122,7 +122,7 @@ function timer.recording.clear(runtime)
 end
 
 function timer.recording.syncSettings(runtime)
-    local result = recording.syncMode(runtime)
+    local result = recording.syncSettings(runtime)
     timer.events.emitRecordingOutputsChanged(runtime)
     return result
 end

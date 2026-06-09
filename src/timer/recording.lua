@@ -61,24 +61,50 @@ function recording.isMultiRunMode()
     return recording.getMode() == "multi"
 end
 
-function recording.syncMode(runtime)
+function recording.syncSettings(runtime)
     local previousMode = currentMode
+    local previousReady = recordingReady
     local nextMode = readRecordingMode(runtime)
-    currentMode = nextMode
-    recordingReady = isRecordingReady(runtime)
+    local nextTargetRuns = readTargetRuns(runtime)
+    local nextReady = isRecordingReady(runtime)
 
-    if previousMode and previousMode ~= nextMode then
-        clearSingleRecording(isRecordingReady(runtime))
-        clearBatchRecording(readTargetRuns(runtime))
-        if nextMode == "multi" and isRecordingReady(runtime) then
-            startBatchRecording(readTargetRuns(runtime))
+    currentMode = nextMode
+    recordingReady = nextReady
+
+    if not nextReady then
+        if previousReady then
+            stopBatchRecording()
+            clearSingleRecording(false)
         end
+        return
     end
 
-    if nextMode == "single" and isRecordingReady(runtime) and not splits.isStarted() then
+    if nextMode == "multi" then
+        if previousMode ~= "multi" then
+            clearSingleRecording(true)
+            startBatchRecording(nextTargetRuns)
+            return
+        end
+        if not batch.isReady() then
+            startBatchRecording(nextTargetRuns)
+            return
+        end
+        if batch.targetRuns() ~= nextTargetRuns and not batch.hasProgress() then
+            startBatchRecording(nextTargetRuns)
+        end
+        return
+    end
+
+    if previousMode == "multi" then
+        clearBatchRecording(nextTargetRuns)
+    end
+
+    if not splits.isStarted() then
         clearSingleRecording(true)
     end
 end
+
+recording.syncMode = recording.syncSettings
 
 function recording.status()
     if recording.isMultiRunMode() then
@@ -137,11 +163,18 @@ end
 
 function recording.initialize(runtime)
     currentMode = readRecordingMode(runtime)
+    recordingReady = isRecordingReady(runtime)
 
-    if currentMode == "multi" and isRecordingReady(runtime) then
-        startBatchRecording(readTargetRuns(runtime))
-    elseif currentMode == "single" then
-        clearSingleRecording(isRecordingReady(runtime))
+    if currentMode == "multi" then
+        clearSingleRecording(recordingReady)
+        if recordingReady then
+            startBatchRecording(readTargetRuns(runtime))
+        else
+            stopBatchRecording()
+        end
+    else
+        clearBatchRecording(readTargetRuns(runtime))
+        clearSingleRecording(recordingReady)
     end
 end
 
