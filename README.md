@@ -10,9 +10,9 @@ LiveSplit records runs and shows selected timing information while you play. Its
 
 ## Examples
 
-<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/Timer1.png" width="100%"/>
+<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/Timer1.png" width="60%"/>
 
-<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/Timer2.png" width="100%"/>
+<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/Timer2.png" width="60%"/>
 
 The recording table supports:
 
@@ -36,14 +36,15 @@ The timer can show these timing columns:
 - Choose which timer columns are visible.
 - Use single-run split mode or multi-run batch recording.
 - Record a batch of 1 to 10 runs and keep cumulative batch totals.
+- **Recording will continue till you stop recording**
 
 ### Single-Run Recording
 
-<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/SingleRun.png" width="100%"/>
+<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/SingleRun.png" width="60%"/>
 
 ### Multi-Run Recording
 
-<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/MultiRun.png" width="100%"/>
+<img src="https://raw.githubusercontent.com/h2pack-speedrun/adamantSpeedrun-LiveSplit/main/assets/MultiRun.png" width="60%"/>
 
 ## Gameplay Impact
 
