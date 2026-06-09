@@ -1,6 +1,6 @@
 # LiveSplit
 
-Mod to add LiveSplit like native support to the game.
+Mod to add LiveSplit like native support to the game. Thanks to Museus for their original Timer mod. This is a big expansion on that
 
 Part of the [Speedrun modpack](https://thunderstore.io/c/hades-ii/p/adamantSpeedrun/Speedrun_Modpack/).
 
