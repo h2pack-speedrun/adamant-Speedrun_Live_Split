@@ -13,7 +13,7 @@ on:
       tools-ref:
         description: "ModpackTools ref used by release scripts"
         required: false
-        default: "release-tools-V2"
+        default: "release-tools-V3"
       lib-version:
         description: "ModpackLib dependency version to pin (blank keeps current manifest pin)"
         required: false
