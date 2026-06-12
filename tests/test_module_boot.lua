@@ -21,7 +21,6 @@ boot.liveModule.drawQuickContent()
 
 local consumerHost = boot.lib.createModule({
     pluginGuid = "test-SpeedrunTimerConsumer",
-    config = {},
     id = "TimerConsumer",
     name = "Timer Consumer",
 })

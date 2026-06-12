@@ -9,9 +9,7 @@ modutil = mods['SGG_Modding-ModUtil']
 ---@module "adamant-ModpackLib"
 ---@type AdamantModpackLib
 local lib = mods['adamant-ModpackLib']
-local chalk = mods['SGG_Modding-Chalk']
 local reload = mods['SGG_Modding-ReLoad']
-local config = chalk.auto('config.lua')
 
 local PACK_ID = "speedrun"
 local MODULE_ID = "LiveSplit"
@@ -26,7 +24,6 @@ local function init()
 
     local module = lib.createModule({
         pluginGuid = PLUGIN_GUID,
-        config = config,
         modpack = PACK_ID,
         id = MODULE_ID,
         name = "LiveSplit",
