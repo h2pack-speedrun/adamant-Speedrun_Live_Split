@@ -45,6 +45,13 @@ jobs:
           path: .modpacktools
           ref: main
 
+      - name: Checkout Lib
+        uses: actions/checkout@v4
+        with:
+          repository: h2-modpack/adamant-ModpackLib
+          path: .modpacklib
+          ref: main
+
       - name: Setup Lua
         uses: leafo/gh-actions-lua@v10
         with:
