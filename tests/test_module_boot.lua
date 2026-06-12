@@ -1,7 +1,7 @@
 local support = dofile("tests/support.lua")
 local assertEqual = support.assertEqual
 
-local harness = dofile("../../ModpackTools/tests/module_entrypoint_harness.lua")
+local harness = support.loadModpackToolsTest("module_entrypoint_harness.lua")
 local boot = harness.bootModule({
     pluginGuid = "adamantSpeedrun-LiveSplit",
     moduleSrcDir = "src",
