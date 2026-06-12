@@ -10,6 +10,10 @@ on:
       is-dry-run:
         description: "Dry-run (do not publish, only test build)"
         type: boolean
+      tools-ref:
+        description: "ModpackTools ref used by release scripts"
+        required: false
+        default: "release-tools-2026-06-12"
       lib-version:
         description: "ModpackLib dependency version to pin (blank keeps current manifest pin)"
         required: false
@@ -67,7 +71,7 @@ jobs:
         with:
           repository: h2-modpack/ModpackTools
           path: .modpacktools
-          ref: main
+          ref: ${{ inputs['tools-ref'] }}
 
       - name: Prepare release files
         env:
