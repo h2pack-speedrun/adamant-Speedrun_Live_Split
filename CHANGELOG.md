@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-06-12
+
+### Changed
+
+- use native module config backend (
+acaf48)
+
 ## [2.0.2] - 2026-06-09
 
 ## [2.0.1] - 2026-06-09
