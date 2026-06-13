@@ -3,6 +3,7 @@ local tests = {
     "tests/test_splits.lua",
     "tests/test_batch.lua",
     "tests/test_recording_bridge.lua",
+    "tests/test_shared_snapshot.lua",
     "tests/test_ui.lua",
 }
 

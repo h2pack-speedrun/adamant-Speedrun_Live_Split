@@ -68,10 +68,6 @@ function support.withImport(callback)
     return result
 end
 
-function support.loadModpackToolsTest(name)
-    return dofile((os.getenv("MODPACK_TOOLS_DIR") or "../../ModpackTools") .. "/tests/" .. name)
-end
-
 support.core = support.withImport(function()
     return assert(loadfile("src/timer/core/00_init.lua"))({
         getTime = function()
