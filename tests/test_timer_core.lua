@@ -206,21 +206,13 @@ overlaySingleRun.updateTick()
 assertEqual(singleRunOverlayDeclarations["summary.igt"].visible(), true)
 assertEqual(singleRunOverlayDeclarations["summary.rta"].visible(), false)
 local projectedSingleRunLines = {}
-local refreshedSingleRunLines = {}
 overlaySingleRunAdapter.project({
     setLine = function(name, values)
         projectedSingleRunLines[name] = values
     end,
-    refresh = function(name)
-        refreshedSingleRunLines[#refreshedSingleRunLines + 1] = name
-    end,
 })
 assertEqual(projectedSingleRunLines["summary.igt"].time, "00:08.76")
 assertEqual(projectedSingleRunLines["summary.rta"].time, "")
-assertEqual(#refreshedSingleRunLines, 3)
-assertEqual(refreshedSingleRunLines[1], "summary.igt")
-assertEqual(refreshedSingleRunLines[2], "summary.rta")
-assertEqual(refreshedSingleRunLines[3], "summary.lrt")
 setTime(0)
 _G.CurrentRun = nil
 

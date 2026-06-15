@@ -32,6 +32,7 @@ function display.project(ctx, opts)
     adapters.singleRun.project(ctx, runtime)
     adapters.batch.project(ctx, runtime)
     adapters.splits.project(ctx, runtime, opts.liveOnly == true)
+    ctx.refreshOwned()
 end
 
 function ensureOverlays()

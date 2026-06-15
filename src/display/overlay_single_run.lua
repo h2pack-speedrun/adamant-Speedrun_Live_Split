@@ -66,7 +66,6 @@ end
 function singleRunOverlay.project(ctx, runtime)
     for _, line in ipairs(LINES) do
         ctx.setLine(line.name, updateLine(line.mode, runtime))
-        ctx.refresh(line.name)
     end
 end
 

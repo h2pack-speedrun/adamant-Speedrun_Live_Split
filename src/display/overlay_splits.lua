@@ -86,7 +86,6 @@ end
 
 function splitOverlay.project(ctx, runtime, liveOnly)
     ctx.setTable("splits", splitOverlay.buildRows(runtime, liveOnly))
-    ctx.refresh("splits")
 end
 
 return splitOverlay

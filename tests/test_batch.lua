@@ -130,18 +130,12 @@ overlayBatch.finalizeRun({
     Cleared = true,
 })
 local projectedBatchTables = {}
-local refreshedBatchTables = {}
 batchOverlayAdapter.project({
     setTable = function(name, rows)
         projectedBatchTables[name] = rows
-    end,
-    refresh = function(name)
-        refreshedBatchTables[#refreshedBatchTables + 1] = name
     end,
 })
 assertEqual(projectedBatchTables.batch[1].key, "run1")
 assertEqual(projectedBatchTables.batch[1].label, "Run 1/2")
 assertEqual(projectedBatchTables.batch[1].igt, "00:08.00")
-assertEqual(#refreshedBatchTables, 1)
-assertEqual(refreshedBatchTables[1], "batch")
 setTime(0)
