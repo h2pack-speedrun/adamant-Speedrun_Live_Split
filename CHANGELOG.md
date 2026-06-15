@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-06-15
+
+### Performance
+
+- livesplit: batch retained overlay refresh (5ec7a04)
+
+### Changed
+
+- livesplit: refresh retained overlays by name (
+f9ac53)
+
 ## [3.0.0] - 2026-06-12
 
 ### Changed
