@@ -81,6 +81,7 @@ end
 
 function batchOverlay.project(ctx, runtime)
     ctx.setTable("batch", batchOverlay.buildRows(runtime))
+    ctx.refresh("batch")
 end
 
 return batchOverlay

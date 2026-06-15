@@ -133,9 +133,15 @@ assertEqual(splitOverlayRows[1].key, "header")
 assertEqual(splitOverlayRows[2].label, "Erebus")
 assertEqual(splitOverlayRows[2].igt, "00:12.34")
 local projectedSplitTables = {}
+local refreshedSplitTables = {}
 splitsOverlayAdapter.project({
     setTable = function(name, rows)
         projectedSplitTables[name] = rows
     end,
+    refresh = function(name)
+        refreshedSplitTables[#refreshedSplitTables + 1] = name
+    end,
 }, nil, true)
 assertEqual(projectedSplitTables.splits[2].label, "Erebus")
+assertEqual(#refreshedSplitTables, 1)
+assertEqual(refreshedSplitTables[1], "splits")

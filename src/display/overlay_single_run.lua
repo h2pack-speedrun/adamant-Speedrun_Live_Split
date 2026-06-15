@@ -64,9 +64,10 @@ function singleRunOverlay.register(overlays, order)
 end
 
 function singleRunOverlay.project(ctx, runtime)
-    ctx.setLine("summary.igt", updateLine("igt", runtime))
-    ctx.setLine("summary.rta", updateLine("rta", runtime))
-    ctx.setLine("summary.lrt", updateLine("lrt", runtime))
+    for _, line in ipairs(LINES) do
+        ctx.setLine(line.name, updateLine(line.mode, runtime))
+        ctx.refresh(line.name)
+    end
 end
 
 function singleRunOverlay.region()
